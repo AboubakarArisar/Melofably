@@ -7,7 +7,9 @@ exit criteria pass, not when its features exist.
 
 Vite + React + TypeScript, Tailwind, Vitest, folder structure, docs.
 
-## Phase 1: Genuine plucked-string synthesis
+## Phase 1: Genuine plucked-string synthesis (implemented, awaiting review)
+
+See [STRING_MODEL.md](STRING_MODEL.md) for the model and its measured accuracy.
 
 - Add the Faust toolchain and compile the first model to WebAssembly.
 - Waveguide plucked string: delay-line string, loop damping filter, pluck

@@ -1,6 +1,6 @@
 /**
  * One controllable DSP parameter. Mirrors the entries in the UI JSON that the
- * Faust compiler emits for every hslider/vslider/nentry, so controls can be
+ * Faust compiler emits for every hslider/vslider/nentry, so controls are
  * generated from compiled DSP metadata instead of being hand-maintained.
  */
 export interface InstrumentParam {
@@ -11,4 +11,9 @@ export interface InstrumentParam {
   max: number
   init: number
   step: number
+  unit?: string
 }
+
+export type EngineStatus =
+  | { state: 'stopped' | 'starting' | 'running' | 'suspended' }
+  | { state: 'error'; message: string }

@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Compiled Faust DSP (npm run dsp)
+src/audio/models/generated

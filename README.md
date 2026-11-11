@@ -4,10 +4,21 @@ Browser-based physical-modeling synthesizer and virtual instrument studio.
 Sound will be computed by Faust DSP compiled to WebAssembly and run in an
 AudioWorklet; the UI is React.
 
-**Status:** project setup only. No synthesis is implemented yet.
+**Status:** Phase 1. A playable plucked string, synthesized by a digital
+waveguide whose pitch follows f = √(T/μ) / 2L.
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [String model and its approximations](docs/STRING_MODEL.md)
 - [Roadmap](docs/ROADMAP.md)
+
+## Playing it
+
+1. Run `npm run dev` and open http://localhost:5173.
+2. Press **Start Audio** (browsers only allow audio after a click).
+3. Click the keys, or use the computer keyboard: the Z row is the first
+   octave, the Q row the second.
+4. Move the sliders. Length, tension and density change the pitch; the
+   calculated fundamental is shown and marked on the spectrum.
 
 ## Requirements
 
@@ -31,6 +42,7 @@ Then open http://localhost:5173.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Start the dev server |
+| `npm run dsp` | Compile the Faust model to WebAssembly (runs automatically before dev, test and build) |
 | `npm test` | Run the Vitest suite once |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

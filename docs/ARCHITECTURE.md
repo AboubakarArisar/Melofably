@@ -4,8 +4,8 @@ SonicMatter is a browser-based physical-modeling synthesizer. All sound is
 computed sample by sample from physical models. There are no samples,
 wavetables, or stand-in engines anywhere in the signal path.
 
-Status: project setup only. Nothing described below under "signal path" is
-implemented yet; this document is the contract the implementation follows.
+Status: Phase 1 is implemented. One model exists, the plucked string; its
+physics and approximations are in [STRING_MODEL.md](STRING_MODEL.md).
 
 ## The four pieces
 
@@ -57,11 +57,25 @@ Two ways to get from `.dsp` to WASM, used at different phases:
   from the user's design and compiles it in the browser with the WASM build of
   the Faust compiler (`libfaust`), lazy-loaded only when the builder is opened.
 
-The planned integration library is `@grame/faustwasm` (GRAME's official
-package), which covers both paths and provides the AudioWorklet node wrapper,
-polyphony, and MIDI handling. It is intentionally **not installed yet**: it is
-added in Phase 1 with the first model, and its exact API is verified against
-its current documentation at that point rather than assumed here.
+The integration library is `@grame/faustwasm` 0.20 (GRAME's official package).
+How it is used today, checked against its installed typings and sources:
+
+- **Build.** `npm run dsp` runs its `faust2wasm-ts` CLI, which compiles
+  `src/audio/models/string.dsp` to `src/audio/models/generated/dsp-module.wasm`
+  and `dsp-meta.json`. The folder is git-ignored and rebuilt before `dev`,
+  `build` and `test`.
+- **Browser.** `src/audio/worklet/stringNode.ts` imports the JSON, fetches and
+  compiles the `.wasm`, and calls
+  `new FaustMonoDspGenerator().createNode(ctx, name, { module, json, soundfiles })`.
+  faustwasm registers its `AudioWorkletProcessor` from a Blob URL and
+  instantiates the module on the audio thread, returning a
+  `FaustMonoAudioWorkletNode`. Parameters are set with
+  `node.setParamValue(path, value)`.
+- **Tests.** `createOfflineProcessor(sampleRate, 128, factory)` runs the same
+  `.wasm` in Node with no `AudioContext`; `render()` returns the samples.
+- **Bundle note.** The package's ESM build has a Node-only branch that imports
+  `fs` and `url`. Vite externalizes them and prints a warning at build time;
+  the branch never runs in a browser.
 
 ## Rules that keep it real-time safe
 
@@ -98,11 +112,13 @@ compiled models`. Nothing under `audio/` imports React.
 ## Testing
 
 - **Pure logic** (pitch math, parameter mapping): Vitest in Node.
-- **DSP correctness** (from Phase 1): render the compiled WASM offline, with no
-  `AudioContext`, and assert on the signal itself. For example, a plucked
-  string at A4 must have its fundamental at 440 Hz and must decay.
-- **Browser integration**: manual at first; automated browser tests when the
-  UI is worth protecting.
+- **DSP correctness** (`tests/string.test.ts`): render the compiled WASM
+  offline, with no `AudioContext`, and assert on the signal itself: measured
+  pitch, decay time, harmonic content, stability, reproducibility.
+- **Engine lifecycle** (`tests/engine.test.ts`): Web Audio objects replaced by
+  counters, to show that notes create no nodes and that dispose releases
+  everything.
+- **Browser integration**: manual; there are no automated browser tests yet.
 
 ## Out of scope for now
 
