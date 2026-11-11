@@ -18,7 +18,9 @@ waveguide whose pitch follows f = √(T/μ) / 2L.
 3. Click the keys, or use the computer keyboard: the Z row is the first
    octave, the Q row the second.
 4. Move the sliders. Length, tension and density change the pitch; the
-   calculated fundamental is shown and marked on the spectrum.
+   calculated fundamental is shown and marked on the spectrum. Tone
+   brightness, attack softness and body resonance change the character
+   without changing the pitch.
 
 ## Requirements
 
@@ -44,6 +46,7 @@ Then open http://localhost:5173.
 | `npm run dev` | Start the dev server |
 | `npm run dsp` | Compile the Faust model to WebAssembly (runs automatically before dev, test and build) |
 | `npm test` | Run the Vitest suite once |
+| `npm run compare` | Render before/after WAV files and metrics into `renders/` |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run lint` | Lint with oxlint |
@@ -61,5 +64,6 @@ src/
     visualization/  audio visualization
   types/            shared types
 tests/              Vitest tests
-docs/               architecture and roadmap
+analysis/           signal measurements, frozen Phase 1 model, compare script
+docs/               architecture, string model, roadmap
 ```

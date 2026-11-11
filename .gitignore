@@ -25,3 +25,7 @@ dist-ssr
 
 # Compiled Faust DSP (npm run dsp)
 src/audio/models/generated
+
+# Before/after audio (npm run compare)
+renders
+analysis/build

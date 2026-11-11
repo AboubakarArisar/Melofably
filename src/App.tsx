@@ -15,6 +15,9 @@ const CONTROLS = [
   { key: 'damping', label: 'Damping' },
   { key: 'pluckPosition', label: 'Pluck position' },
   { key: 'strength', label: 'Excitation strength' },
+  { key: 'brightness', label: 'Tone brightness' },
+  { key: 'softness', label: 'Attack softness' },
+  { key: 'body', label: 'Body resonance' },
 ]
 
 const STATUS_TEXT: Record<EngineStatus['state'], string> = {
@@ -37,6 +40,7 @@ export default function App() {
   const [fret, setFret] = useState<number | null>(null)
 
   useEffect(() => () => void engine.dispose(), [engine])
+
   const { state } = status
   const running = state === 'running'
 

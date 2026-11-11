@@ -11,6 +11,10 @@ Vite + React + TypeScript, Tailwind, Vitest, folder structure, docs.
 
 See [STRING_MODEL.md](STRING_MODEL.md) for the model and its measured accuracy.
 
+Phase 1.1 (sound quality, awaiting listening feedback): note-independent
+high-frequency loss, a rounder pluck, a modal body, click-free retrigger, a
+soft limiter, and three character controls.
+
 - Add the Faust toolchain and compile the first model to WebAssembly.
 - Waveguide plucked string: delay-line string, loop damping filter, pluck
   excitation with position and brightness.
