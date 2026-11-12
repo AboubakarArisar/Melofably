@@ -4,17 +4,26 @@ Browser-based physical-modeling synthesizer and virtual instrument studio.
 Sound will be computed by Faust DSP compiled to WebAssembly and run in an
 AudioWorklet; the UI is React.
 
-**Status:** Phase 1. A playable plucked string, synthesized by a digital
-waveguide whose pitch follows f = √(T/μ) / 2L.
+**Status:** Phase 2A. Two playable instruments:
+
+- **String:** a plucked string synthesized by a digital waveguide whose pitch
+  follows f = √(T/μ) / 2L.
+- **Metal Bar:** a set of struck free-free metal bars synthesized from their
+  bending modes (Euler-Bernoulli beam theory).
+
+Documentation:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [String model and its approximations](docs/STRING_MODEL.md)
+- [Metal bar model and its assumptions](docs/BAR_MODEL.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
 
 1. Run `npm run dev` and open http://localhost:5173.
-2. Press **Start Audio** (browsers only allow audio after a click).
+2. Choose **String** or **Metal Bar**, then press **Start Audio** (browsers
+   only allow audio after a click). The instrument can be changed while
+   audio is running.
 3. Click the keys, or use the computer keyboard: the Z row is the first
    octave, the Q row the second.
 4. Move the sliders. Length, tension and density change the pitch; the
@@ -46,7 +55,8 @@ Then open http://localhost:5173.
 | `npm run dev` | Start the dev server |
 | `npm run dsp` | Compile the Faust model to WebAssembly (runs automatically before dev, test and build) |
 | `npm test` | Run the Vitest suite once |
-| `npm run compare` | Render before/after WAV files and metrics into `renders/` |
+| `npm run compare` | Render before/after string WAV files and metrics into `renders/` |
+| `npm run render:bar` | Render metal bar WAV files and metrics into `renders/metal-bar/` |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run lint` | Lint with oxlint |

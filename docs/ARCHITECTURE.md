@@ -4,8 +4,11 @@ SonicMatter is a browser-based physical-modeling synthesizer. All sound is
 computed sample by sample from physical models. There are no samples,
 wavetables, or stand-in engines anywhere in the signal path.
 
-Status: Phase 1 is implemented. One model exists, the plucked string; its
-physics and approximations are in [STRING_MODEL.md](STRING_MODEL.md).
+Status: two models exist. The plucked string (waveguide) is described in
+[STRING_MODEL.md](STRING_MODEL.md) and the struck metal bar (modal synthesis)
+in [BAR_MODEL.md](BAR_MODEL.md). Each is its own Faust program and its own
+WebAssembly module; the engine hosts one at a time and swaps the worklet node
+when the instrument changes.
 
 ## The four pieces
 
@@ -60,12 +63,12 @@ Two ways to get from `.dsp` to WASM, used at different phases:
 The integration library is `@grame/faustwasm` 0.20 (GRAME's official package).
 How it is used today, checked against its installed typings and sources:
 
-- **Build.** `npm run dsp` runs its `faust2wasm-ts` CLI, which compiles
-  `src/audio/models/string.dsp` to `src/audio/models/generated/dsp-module.wasm`
-  and `dsp-meta.json`. The folder is git-ignored and rebuilt before `dev`,
-  `build` and `test`.
-- **Browser.** `src/audio/worklet/stringNode.ts` imports the JSON, fetches and
-  compiles the `.wasm`, and calls
+- **Build.** `npm run dsp` runs its `faust2wasm-ts` CLI, which compiles each
+  `src/audio/models/<name>.dsp` to
+  `src/audio/models/generated/<name>/dsp-module.wasm` and `dsp-meta.json`. The
+  folder is git-ignored and rebuilt before `dev`, `build` and `test`.
+- **Browser.** `src/audio/worklet/instruments.ts` lists the models, imports
+  each one's JSON, fetches and compiles its `.wasm`, and calls
   `new FaustMonoDspGenerator().createNode(ctx, name, { module, json, soundfiles })`.
   faustwasm registers its `AudioWorkletProcessor` from a Blob URL and
   instantiates the module on the audio thread, returning a
@@ -112,12 +115,15 @@ compiled models`. Nothing under `audio/` imports React.
 ## Testing
 
 - **Pure logic** (pitch math, parameter mapping): Vitest in Node.
-- **DSP correctness** (`tests/string.test.ts`): render the compiled WASM
-  offline, with no `AudioContext`, and assert on the signal itself: measured
-  pitch, decay time, harmonic content, stability, reproducibility.
+- **DSP correctness** (`tests/string.test.ts`, `tests/bar.test.ts`): render the
+  compiled WASM offline, with no `AudioContext`, and assert on the signal
+  itself: measured pitch or modal frequencies, decay, spectral content,
+  stability, reproducibility.
 - **Engine lifecycle** (`tests/engine.test.ts`): Web Audio objects replaced by
-  counters, to show that notes create no nodes and that dispose releases
-  everything.
+  counters, to show that notes create no nodes, that switching instrument
+  swaps exactly one node, and that dispose releases everything.
+- **Development hook.** In development builds only, the live engine is exposed
+  as `window.sonicmatter` so its analyser can be read from the console.
 - **Browser integration**: manual; there are no automated browser tests yet.
 
 ## Out of scope for now

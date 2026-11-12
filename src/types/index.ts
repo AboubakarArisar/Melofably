@@ -14,6 +14,10 @@ export interface InstrumentParam {
   unit?: string
 }
 
+export type InstrumentId = 'string' | 'bar'
+
 export type EngineStatus =
-  | { state: 'stopped' | 'starting' | 'running' | 'suspended' }
+  | { state: 'stopped' | 'starting' }
+  /** `instrument` is the model whose node is live and accepting parameters. */
+  | { state: 'running' | 'suspended'; instrument: InstrumentId }
   | { state: 'error'; message: string }

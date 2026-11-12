@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dsp": "faust2wasm-ts src/audio/models/string.dsp src/audio/models/generated -no-template",
+    "dsp": "faust2wasm-ts src/audio/models/string.dsp src/audio/models/generated/string -no-template && faust2wasm-ts src/audio/models/bar.dsp src/audio/models/generated/bar -no-template",
     "predev": "npm run dsp",
     "prebuild": "npm run dsp",
     "pretest": "npm run dsp",
@@ -12,6 +12,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "compare": "node analysis/compare.ts",
+    "render:bar": "node analysis/render-bar.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

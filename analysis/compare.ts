@@ -4,16 +4,14 @@
 //
 //   npm run compare
 //
-// Output: renders/<model>/<note>.wav, renders/metrics.json, and tables on stdout.
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { FaustMonoDspGenerator, WavEncoder } from '@grame/faustwasm/dist/esm/index.js'
-import faust2wasmFiles from '@grame/faustwasm/src/faust2wasmFiles.js'
+// Output: renders/<model>/<note>.wav, renders/string-metrics.json, and tables
+// on stdout.
+import { writeFileSync } from 'node:fs'
 import {
   bandPower,
   cents,
   dB,
   decayTime,
-  makeString,
   maxStep,
   measureFrequency,
   peak,
@@ -23,10 +21,7 @@ import {
   SR,
   type Params,
 } from './lib.ts'
-
-const root = new URL('..', import.meta.url)
-const path = (rel: string) => new URL(rel, root)
-const fsPath = (rel: string) => decodeURIComponent(path(rel).pathname).replace(/^\/(\w:)/, '$1')
+import { compileModel, concat, freshDir, fsPath, path, writeWav } from './offline.ts'
 
 const MODELS = [
   { name: 'before-phase1', dsp: 'analysis/string-phase1.dsp' },
@@ -111,28 +106,12 @@ function harmonicAmp(x: Float32Array, f: number, k: number): number {
   return (2 * Math.hypot(re, im)) / wsum
 }
 
-function writeWav(rel: string, x: Float32Array) {
-  writeFileSync(path(rel), new Uint8Array(WavEncoder.encode([x], { sampleRate: SR, bitDepth: 24 }) as ArrayBuffer))
-}
-
 const results: Record<string, unknown> = {}
-rmSync(path('renders'), { recursive: true, force: true })
 
 for (const model of MODELS) {
   const out = `renders/${model.name}`
-  mkdirSync(path(out), { recursive: true })
-  const build = `analysis/build/${model.name}`
-  const log = console.log
-  console.log = () => {} // the compiler is chatty
-  await faust2wasmFiles(fsPath(model.dsp), fsPath(build), [], false)
-  console.log = log
-  const factory = {
-    module: await WebAssembly.compile(readFileSync(path(`${build}/dsp-module.wasm`))),
-    json: readFileSync(path(`${build}/dsp-meta.json`), 'utf8'),
-    soundfiles: {},
-  }
-  const fresh = async (params: Params) =>
-    makeString(await new FaustMonoDspGenerator().createOfflineProcessor(SR, 128, factory), params)
+  freshDir(out)
+  const fresh = await compileModel(model.dsp, 'pluck')
 
   // 1. Single notes.
   const notes: Record<string, ReturnType<typeof measureNote>> = {}
@@ -153,7 +132,7 @@ for (const model of MODELS) {
     repeats.push(s.pluckAndRender(0.12))
   }
   repeats.push(s.render(1.5))
-  const retrigger = Float32Array.from([first, second, ...repeats].flatMap((a) => [...a]))
+  const retrigger = concat([first, second, ...repeats])
   writeWav(`${out}/09-retrigger.wav`, retrigger)
   const at = first.length
   const retrig = {
@@ -173,7 +152,7 @@ for (const model of MODELS) {
     phrase.push(p.pluckAndRender(0.3))
   }
   phrase.push(p.render(2.5))
-  writeWav(`${out}/10-phrase.wav`, Float32Array.from(phrase.flatMap((a) => [...a])))
+  writeWav(`${out}/10-phrase.wav`, concat(phrase))
 
   // 4. Stability: least damping the model allows, 20 s.
   const long = (await fresh({ ...MID, damping: 0, strength: 1 })).pluckAndRender(20)
@@ -193,6 +172,5 @@ for (const model of MODELS) {
   console.table({ stability })
 }
 
-writeFileSync(path('renders/metrics.json'), JSON.stringify(results, null, 2))
-rmSync(path('analysis/build'), { recursive: true, force: true })
-console.log(`\nWAV files and metrics.json written to ${fsPath('renders')}`)
+writeFileSync(path('renders/string-metrics.json'), JSON.stringify(results, null, 2))
+console.log(`\nWAV files and string-metrics.json written to ${fsPath('renders')}`)

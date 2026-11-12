@@ -172,7 +172,7 @@ physical settings, and writes:
 
 - `renders/before-phase1/*.wav` and `renders/after-phase1.1/*.wav` (24-bit,
   48 kHz, mono)
-- `renders/metrics.json` and tables on stdout
+- `renders/string-metrics.json` and tables on stdout
 
 The renders are deterministic and git-ignored. The metrics describe the
 signal; whether it sounds better is a listening judgement.

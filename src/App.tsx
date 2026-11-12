@@ -1,24 +1,86 @@
 import { useCallback, useEffect, useState } from 'react'
-import { stringFundamental } from './audio/engine/physics'
-import { StringEngine } from './audio/engine/StringEngine'
-import { stringParams } from './audio/worklet/stringNode'
+import { AudioEngine } from './audio/engine/AudioEngine'
+import { BAR_MODE_K, barModeFrequencies, stringFundamental, type BarParams } from './audio/engine/physics'
+import { instrumentParams } from './audio/worklet/instruments'
 import { Keyboard } from './components/controls/Keyboard'
 import { ParamSlider } from './components/controls/ParamSlider'
 import { Visualizer } from './components/visualization/Visualizer'
-import type { EngineStatus } from './types'
+import type { EngineStatus, InstrumentId } from './types'
 
-// Ranges, defaults and units come from the compiled Faust model (stringParams).
-const CONTROLS = [
-  { key: 'length', label: 'String length' },
-  { key: 'tension', label: 'Tension' },
-  { key: 'density', label: 'Linear density' },
-  { key: 'damping', label: 'Damping' },
-  { key: 'pluckPosition', label: 'Pluck position' },
-  { key: 'strength', label: 'Excitation strength' },
-  { key: 'brightness', label: 'Tone brightness' },
-  { key: 'softness', label: 'Attack softness' },
-  { key: 'body', label: 'Body resonance' },
-]
+type Values = Record<string, number>
+interface Readout {
+  label: string
+  value: string
+}
+interface InstrumentUI {
+  label: string
+  /** What a key selects, for labels: a fret of the string, a bar of the set. */
+  noteName: string
+  /** Slider ranges, defaults and units come from the compiled Faust model. */
+  controls: { key: string; label: string }[]
+  /** Calculated frequency in Hz of note `note` (its lowest mode). */
+  frequency: (v: Values, note: number) => number
+  readouts: (v: Values, note: number | null) => Readout[]
+}
+
+const hz = (f: number) => `${f.toFixed(2)} Hz`
+const barFrequency = (v: Values, note: number) => barModeFrequencies(v as unknown as BarParams, note)[0]
+
+const INSTRUMENTS: Record<InstrumentId, InstrumentUI> = {
+  string: {
+    label: 'String',
+    noteName: 'fret',
+    controls: [
+      { key: 'length', label: 'String length' },
+      { key: 'tension', label: 'Tension' },
+      { key: 'density', label: 'Linear density' },
+      { key: 'damping', label: 'Damping' },
+      { key: 'pluckPosition', label: 'Pluck position' },
+      { key: 'strength', label: 'Excitation strength' },
+      { key: 'brightness', label: 'Tone brightness' },
+      { key: 'softness', label: 'Attack softness' },
+      { key: 'body', label: 'Body resonance' },
+    ],
+    frequency: (v, note) => stringFundamental(v.tension, v.density, v.length, note),
+    readouts: (v, note) => [
+      { label: 'Open string, f = √(T/μ) / 2L', value: hz(stringFundamental(v.tension, v.density, v.length)) },
+      {
+        label: note === null ? 'Last note' : `Last note (fret ${note})`,
+        value: note === null ? '—' : hz(stringFundamental(v.tension, v.density, v.length, note)),
+      },
+      { label: 'Wave speed, √(T/μ)', value: `${Math.sqrt(v.tension / v.density).toFixed(1)} m/s` },
+    ],
+  },
+  bar: {
+    label: 'Metal Bar',
+    noteName: 'bar',
+    controls: [
+      { key: 'length', label: 'Bar length (longest bar)' },
+      { key: 'thickness', label: 'Thickness' },
+      { key: 'density', label: 'Density' },
+      { key: 'youngsModulus', label: "Young's modulus" },
+      { key: 'lossFactor', label: 'Internal damping (loss factor)' },
+      { key: 'strikePosition', label: 'Strike position (0 end, 0.5 middle)' },
+      { key: 'hardness', label: 'Mallet hardness' },
+      { key: 'velocity', label: 'Strike velocity' },
+    ],
+    frequency: barFrequency,
+    readouts: (v, note) => [
+      { label: 'Longest bar, mode 1 = k₁²h/(2πL²)·√(E/12ρ)', value: hz(barFrequency(v, 0)) },
+      {
+        label: note === null ? 'Last bar struck' : `Last bar struck (bar ${note})`,
+        value: note === null ? '—' : hz(barFrequency(v, note)),
+      },
+      {
+        label: 'Mode ratios (free-free beam)',
+        value: BAR_MODE_K.slice(0, 4)
+          .map((k) => ((k / BAR_MODE_K[0]) ** 2).toFixed(2))
+          .join(' : '),
+      },
+    ],
+  },
+}
+const IDS = Object.keys(INSTRUMENTS) as InstrumentId[]
 
 const STATUS_TEXT: Record<EngineStatus['state'], string> = {
   stopped: 'Audio is off. Press Start Audio.',
@@ -33,38 +95,75 @@ const button =
 
 export default function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: 'stopped' })
-  const [engine] = useState(() => new StringEngine(setStatus))
-  const [values, setValues] = useState(() =>
-    Object.fromEntries(CONTROLS.map((c) => [c.key, stringParams[c.key].init])),
+  const [engine] = useState(() => new AudioEngine(setStatus))
+  const [instrument, setInstrument] = useState<InstrumentId>('string')
+  // Each instrument keeps its own control values while the other is selected.
+  const [allValues, setAllValues] = useState(() =>
+    Object.fromEntries(
+      IDS.map((id) => [id, Object.fromEntries(INSTRUMENTS[id].controls.map((c) => [c.key, instrumentParams[id][c.key].init]))]),
+    ) as Record<InstrumentId, Values>,
   )
-  const [fret, setFret] = useState<number | null>(null)
+  const [note, setNote] = useState<number | null>(null)
 
-  useEffect(() => () => void engine.dispose(), [engine])
-
-  const { state } = status
-  const running = state === 'running'
-
-  // Send the control values to the DSP whenever they change or audio (re)starts.
   useEffect(() => {
-    if (running) for (const [key, value] of Object.entries(values)) engine.setParam(key, value)
-  }, [engine, running, values])
+    // Development only: lets the live engine be inspected from the console.
+    if (import.meta.env.DEV) Object.assign(window, { sonicmatter: engine })
+    return () => void engine.dispose()
+  }, [engine])
 
-  const pluck = useCallback(
-    (f: number) => {
-      setFret(f)
-      engine.pluck(f)
+  const ui = INSTRUMENTS[instrument]
+  const params = instrumentParams[instrument]
+  const values = allValues[instrument]
+  const { state } = status
+  // Playable once the selected instrument's own node is live.
+  const live = status.state === 'running' && status.instrument === instrument
+
+  // Send the control values to the DSP whenever they change, audio (re)starts,
+  // or the instrument's node has just been swapped in.
+  useEffect(() => {
+    if (live) for (const [key, value] of Object.entries(values)) engine.setParam(key, value)
+  }, [engine, live, values])
+
+  const play = useCallback(
+    (n: number) => {
+      setNote(n)
+      engine.play(n)
     },
     [engine],
   )
 
-  const frequencyOf = (f: number) => stringFundamental(values.tension, values.density, values.length, f)
+  const select = (id: InstrumentId) => {
+    setInstrument(id)
+    setNote(null)
+    void engine.setInstrument(id)
+  }
+
+  const frequencyOf = (n: number) => ui.frequency(values, n)
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl space-y-6 p-6 font-mono text-sm text-neutral-200">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-lg font-semibold">SonicMatter · plucked string</h1>
+        <h1 className="mr-auto text-lg font-semibold">SonicMatter</h1>
+        <label className="flex items-center gap-2 text-neutral-400">
+          Instrument
+          <select
+            className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-neutral-100"
+            value={instrument}
+            onChange={(e) => select(e.target.value as InstrumentId)}
+          >
+            {IDS.map((id) => (
+              <option key={id} value={id}>
+                {INSTRUMENTS[id].label}
+              </option>
+            ))}
+          </select>
+        </label>
         {state === 'stopped' || state === 'error' ? (
-          <button type="button" className={`${button} border-emerald-500 text-emerald-300`} onClick={() => void engine.start()}>
+          <button
+            type="button"
+            className={`${button} border-emerald-500 text-emerald-300`}
+            onClick={() => void engine.start(instrument)}
+          >
             Start Audio
           </button>
         ) : (
@@ -73,9 +172,9 @@ export default function App() {
               type="button"
               className={button}
               disabled={state === 'starting'}
-              onClick={() => void (running ? engine.suspend() : engine.resume())}
+              onClick={() => void (state === 'running' ? engine.suspend() : engine.resume())}
             >
-              {running ? 'Suspend' : 'Resume'}
+              {state === 'running' ? 'Suspend' : 'Resume'}
             </button>
             <button type="button" className={button} onClick={() => void engine.dispose()}>
               Stop
@@ -84,9 +183,9 @@ export default function App() {
         )}
       </header>
 
-      <p role="status" className={running ? 'text-emerald-400' : 'text-neutral-400'}>
-        {STATUS_TEXT[state]}
-        {running && engine.analyser && ` at ${engine.analyser.context.sampleRate} Hz`}
+      <p role="status" className={live ? 'text-emerald-400' : 'text-neutral-400'}>
+        {state === 'running' && !live ? `Loading ${ui.label}…` : STATUS_TEXT[state]}
+        {live && engine.analyser && `: ${ui.label} at ${engine.analyser.context.sampleRate} Hz`}
       </p>
       {status.state === 'error' && (
         <p role="alert" className="rounded border border-red-800 bg-red-950 p-3 text-red-300">
@@ -95,38 +194,29 @@ export default function App() {
       )}
 
       <section aria-label="Calculated pitch" className="grid gap-4 sm:grid-cols-3">
-        <Readout label="Open string, f = √(T/μ) / 2L" value={`${frequencyOf(0).toFixed(2)} Hz`} />
-        <Readout
-          label={fret === null ? 'Last note' : `Last note (fret ${fret})`}
-          value={fret === null ? '—' : `${frequencyOf(fret).toFixed(2)} Hz`}
-        />
-        <Readout label="Wave speed, √(T/μ)" value={`${Math.sqrt(values.tension / values.density).toFixed(1)} m/s`} />
+        {ui.readouts(values, note).map((r) => (
+          <div key={r.label} className="rounded border border-neutral-800 p-3">
+            <div className="text-neutral-400">{r.label}</div>
+            <div className="text-xl text-neutral-100 tabular-nums">{r.value}</div>
+          </div>
+        ))}
       </section>
 
-      <section aria-label="String controls" className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-        {CONTROLS.map(({ key, label }) => (
+      <section aria-label={`${ui.label} controls`} className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        {ui.controls.map(({ key, label }) => (
           <ParamSlider
-            key={key}
-            param={stringParams[key]}
+            key={`${instrument}/${key}`}
+            param={params[key]}
             label={label}
             value={values[key]}
-            onChange={(v) => setValues((prev) => ({ ...prev, [key]: v }))}
+            onChange={(v) => setAllValues((prev) => ({ ...prev, [instrument]: { ...prev[instrument], [key]: v } }))}
           />
         ))}
       </section>
 
-      <Keyboard disabled={!running} active={fret} frequencyOf={frequencyOf} onPluck={pluck} />
+      <Keyboard disabled={!live} active={note} noteName={ui.noteName} frequencyOf={frequencyOf} onPlay={play} />
 
-      <Visualizer analyser={engine.analyser} fundamental={frequencyOf(fret ?? 0)} />
+      <Visualizer analyser={engine.analyser} fundamental={frequencyOf(note ?? 0)} />
     </main>
-  )
-}
-
-function Readout({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border border-neutral-800 p-3">
-      <div className="text-neutral-400">{label}</div>
-      <div className="text-xl text-neutral-100 tabular-nums">{value}</div>
-    </div>
   )
 }

@@ -15,13 +15,15 @@ interface OfflineDsp {
 }
 
 /**
- * Wrap a Faust offline processor of a string model. Parameters the model does
- * not have are ignored, so one settings object can drive old and new models.
- * The instance is rendered for 0.5 s first so parameter smoothers settle.
+ * Wrap a Faust offline processor of an instrument model. `triggerParam` is
+ * the counter the model watches to start a note ("pluck" for the string,
+ * "strike" for the bar). Parameters the model does not have are ignored, so
+ * one settings object can drive old and new models. The instance is rendered
+ * for 0.5 s first so parameter smoothers settle.
  */
-export function makeString(dsp: OfflineDsp, params: Params = {}, sampleRate = SR) {
+export function makeInstrument(dsp: OfflineDsp, params: Params = {}, sampleRate = SR, triggerParam = 'pluck') {
   const paths = new Map(dsp.getParams().map((p) => [p.split('/').pop()!, p]))
-  let plucks = 0
+  let count = 0
   const render = (seconds: number) => dsp.render([], Math.round(seconds * sampleRate))[0]
   const set = (p: Params) => {
     for (const [k, v] of Object.entries(p)) {
@@ -29,19 +31,18 @@ export function makeString(dsp: OfflineDsp, params: Params = {}, sampleRate = SR
       if (path) dsp.setParamValue(path, v)
     }
   }
+  const trigger = () => dsp.setParamValue(paths.get(triggerParam)!, ++count)
+  /** Start a note and return the following `seconds` of audio. */
+  const play = (seconds: number) => {
+    trigger()
+    return render(seconds)
+  }
   set(params)
   render(0.5)
-  return {
-    set,
-    render,
-    pluck: () => dsp.setParamValue(paths.get('pluck')!, ++plucks),
-    /** Pluck and return the following `seconds` of audio. */
-    pluckAndRender(seconds: number) {
-      this.pluck()
-      return render(seconds)
-    },
-  }
+  return { set, render, trigger, play, pluck: trigger, pluckAndRender: play }
 }
+
+export const makeString = makeInstrument
 
 // ---- time domain ------------------------------------------------------------
 
@@ -171,6 +172,27 @@ export function powerSpectrum(x: Float32Array, start: number, n: number): Float6
   const p = new Float64Array(n / 2 + 1)
   for (let k = 0; k <= n / 2; k++) p[k] = re[k] * re[k] + im[k] * im[k]
   return p
+}
+
+/**
+ * Spectral peaks of `x`, lowest frequency first: bins within `rangeDb` of the
+ * largest that are the maximum of their neighbourhood (+-20 Hz, which skips
+ * window sidelobes), each refined to a fraction of a bin by fitting a
+ * parabola to the log power around it. Uses the first `n` samples (a power of
+ * 2), so resolution is sampleRate / n.
+ */
+export function spectralPeaks(x: Float32Array, n = 65536, rangeDb = 60, sampleRate = SR) {
+  const p = powerSpectrum(x, 0, n)
+  const floor = Math.max(...p) * 10 ** (-rangeDb / 10)
+  const reach = Math.ceil((20 * n) / sampleRate)
+  const peaks: { freq: number; amp: number }[] = []
+  for (let k = reach; k < p.length - reach; k++) {
+    if (p[k] < floor || p[k] < Math.max(...p.subarray(k - reach, k + reach + 1))) continue
+    const [a, b, c] = [Math.log(p[k - 1]), Math.log(p[k]), Math.log(p[k + 1])]
+    const shift = (0.5 * (a - c)) / (a - 2 * b + c)
+    peaks.push({ freq: ((k + shift) * sampleRate) / n, amp: Math.sqrt(p[k]) })
+  }
+  return peaks
 }
 
 /** Amplitude-weighted mean frequency in Hz: higher means brighter. */
