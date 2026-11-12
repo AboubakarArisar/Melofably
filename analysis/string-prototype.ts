@@ -112,13 +112,15 @@ export function runCoupled(setup: Coupled, seconds: number, excitation: Excitati
  *
  *   1/k + tan(w L / c) c / (T w) + sum_n shape_n^2 / (m_n (w_n^2 - w^2)) = 0.
  */
-export function exactFrequencies(string: StringParams, stiffness: number, body: Mode[] | null, limit: number): number[] {
+export function exactFrequencies(string: StringParams, stiffness: number, body: Mode[] | null, limit: number, bridgeMass = 0): number[] {
   const c = waveSpeed(string)
   const D = (f: number) => {
     const w = 2 * Math.PI * f
-    let sum = 1 / stiffness + (Math.tan((w * string.length) / c) * c) / (string.tension * w)
-    for (const mode of body ?? []) sum += mode.shape[BRIDGE] ** 2 / (mode.mass * ((2 * Math.PI * mode.frequency) ** 2 - w * w))
-    return sum
+    let give = 0
+    for (const mode of body ?? []) give += mode.shape[BRIDGE] ** 2 / (mode.mass * ((2 * Math.PI * mode.frequency) ** 2 - w * w))
+    // A bridge mass moves with the body there: their dynamic stiffnesses add.
+    if (bridgeMass > 0) give = 1 / (1 / give - bridgeMass * w * w)
+    return 1 / stiffness + (Math.tan((w * string.length) / c) * c) / (string.tension * w) + give
   }
   const roots: number[] = []
   const step = 0.02

@@ -83,6 +83,12 @@ string were measured side by side against theory and against the approved
 Faust string. See [STRING_PROTOTYPE.md](STRING_PROTOTYPE.md). Strings are not
 in the builder.
 
+Phase 3C.2 (prototype, awaiting review): a physically derived soundboard (a
+thin rectangular wooden plate) for a modal string to sit on, with a simple
+radiation model, checked against plate theory and timed in a real
+AudioWorklet. See [SOUNDBOARD.md](SOUNDBOARD.md). Still isolated from the
+builder.
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

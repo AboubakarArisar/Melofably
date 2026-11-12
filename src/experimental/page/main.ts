@@ -3,6 +3,9 @@
 import { createInstrumentNode } from '../../audio/worklet/instruments.ts'
 import { EXAMPLES } from '../../builder/examples.ts'
 import { instrumentCalls, translate } from '../../builder/translate.ts'
+import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
+import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
+import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
 import { INSTANT, RAMP, ZERO_CROSSING, type Call } from '../wasm/engine.ts'
 import { createPhysicsNode, type PhysicsNode } from '../wasm/host.ts'
 import { LAYOUTS, toCalls, tuneCalls, type Layout } from '../wasm/layouts.ts'
@@ -26,6 +29,7 @@ const el = {
   verify: $<HTMLButtonElement>('verify'),
   bench: $<HTMLButtonElement>('bench'),
   dropouts: $<HTMLButtonElement>('dropouts'),
+  strings: $<HTMLButtonElement>('strings'),
   results: $('results'),
 }
 
@@ -561,6 +565,83 @@ async function dropoutCheck(seconds = 6, rounds = 2) {
   return { visibility: document.visibilityState, hardwareConcurrency: navigator.hardwareConcurrency, secondsPerCase: seconds, results }
 }
 
+// ---- Strings on a soundboard (Phase 3C.2 prototype) -------------------------------------
+// The same instruments as analysis/render-soundboard.ts, timed in a real AudioWorklet.
+
+const SOUNDBOARD: PlateParams = { ...SPRUCE_PLATE, thickness: 0.004 }
+const GUITAR_SET: StringParams[] = ([[82.41, 0.0064], [110, 0.0036], [146.83, 0.0021], [196, 0.0012], [246.94, 0.0007], [329.63, 0.0004]] as const).map(([f, density]) => ({ length: 0.65, density, tension: density * (2 * 0.65 * f) ** 2 }))
+
+function stringInstrument(strings: StringParams[], modesPerString: number, boardLimit: number, rate: number) {
+  const points = strings.map((_, i): [number, number] => [0.3, 0.44 + ((i - (strings.length - 1) / 2) * 0.01) / SOUNDBOARD.width])
+  const built = buildInstrument({ strings, loss: DEFAULT_LOSS, stringModes: modesPerString, pluckAt: 0.8, body: plateModes(SOUNDBOARD, points, rate, boardLimit), bridge: { stiffness: 1e6 }, output: { port: strings.length, gain: 4 } }, rate)
+  // Every string plucked (a short push at its pluck point), in turn.
+  const play = (i: number): Call[] => [['strike', built.strings[i % strings.length], STRING_PLUCK, 0.002, 0.002]]
+  return { built, play }
+}
+
+async function stringBench() {
+  await stop()
+  const cases: [string, StringParams[], number, number][] = [
+    ['one string (100 modes), soundboard to 2 kHz', [GUITAR_SET[1]], 100, 2000],
+    ['one string (100 modes), soundboard to 5 kHz', [GUITAR_SET[1]], 100, 5000],
+    ['three strings (100 modes each), soundboard to 2 kHz', GUITAR_SET.slice(1, 4), 100, 2000],
+    ['six strings (60 modes each), soundboard to 2 kHz', GUITAR_SET, 60, 2000],
+    ['six strings (100 modes each), soundboard to 5 kHz', GUITAR_SET, 100, 5000],
+  ]
+  const results: Record<string, unknown> = {}
+  for (const [name, strings, modesPerString, boardLimit] of cases) {
+    // Offline: how fast the worklet can go.
+    const speeds: number[] = []
+    let modes = 0
+    let peak = 0
+    for (let runIndex = 0; runIndex < 4; runIndex++) {
+      const ctx = new OfflineAudioContext(1, 10 * 48000, 48000)
+      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, 48000)
+      modes = built.modes.body + built.modes.strings.reduce((a, b) => a + b, 0)
+      const physics = await createPhysicsNode(ctx, [...built.calls, ...strings.flatMap((_, i) => play(i))])
+      physics.node.connect(ctx.destination)
+      const t0 = performance.now()
+      const data = (await ctx.startRendering()).getChannelData(0)
+      if (runIndex > 0) speeds.push(10 / ((performance.now() - t0) / 1000))
+      peak = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+      if (!data.every(Number.isFinite)) throw new Error('non-finite output')
+    }
+    // Live: plucked ten times a second for 6 s, through the speakers and then with no output device.
+    const live: Record<string, unknown> = {}
+    for (const sink of ['default device', 'no device'] as const) {
+      const ctx = new AudioContext({ latencyHint: 'interactive', ...(sink === 'no device' ? { sinkId: { type: 'none' } } : {}) } as AudioContextOptions)
+      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, ctx.sampleRate)
+      const physics = await createPhysicsNode(ctx, built.calls, { measure: true })
+      physics.node.connect(new GainNode(ctx, { gain: 0.3 })).connect(ctx.destination)
+      await ctx.resume()
+      await sleep(1500)
+      const stats = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+      const [r0, c0, u0, t0] = [await physics.report(), ctx.currentTime, stats?.underrunEvents ?? 0, performance.now()]
+      for (let i = 0; performance.now() - t0 < 6000; i++) {
+        physics.send(play(i))
+        await sleep(100)
+      }
+      await sleep(1200)
+      const r1 = await physics.report()
+      const blocks = r1.blocks - r0.blocks
+      live[sink] = {
+        engineCpuPercentOfOneCore: Number(((100 * (r1.busyMs - r0.busyMs)) / ((blocks * 128 * 1000) / ctx.sampleRate)).toFixed(2)),
+        blocksOf2msOrMore: r1.slowBlocks - r0.slowBlocks,
+        blocksProcessed: blocks,
+        blocksExpected: Math.round(((ctx.currentTime - c0) * ctx.sampleRate) / 128),
+        deviceDropouts: stats ? stats.underrunEvents - u0 : 'not reported',
+        nonFiniteSamples: r1.faults,
+      }
+      physics.dispose()
+      await ctx.close()
+    }
+    const x = median(speeds)
+    results[name] = { modes, offline: { xRealtime: Math.round(x), cpuPercentOfOneCore: Number((100 / x).toFixed(2)), outputPeak: Number(peak.toFixed(3)) }, live }
+    el.results.textContent = `string benchmark... ${name} done`
+  }
+  return { userAgent: navigator.userAgent, results }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -586,8 +667,9 @@ el.rapid.onclick = () => busy(el.rapid, () => rapid())
 el.verify.onclick = () => busy(el.verify, verify)
 el.bench.onclick = () => busy(el.bench, bench)
 el.dropouts.onclick = () => busy(el.dropouts, () => dropoutCheck())
+el.strings.onclick = () => busy(el.strings, stringBench)
 applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, livePeak, counts } })

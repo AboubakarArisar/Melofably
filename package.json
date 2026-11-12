@@ -21,6 +21,7 @@
     "render:wasm": "node analysis/render-wasm.ts",
     "render:builder": "node analysis/render-builder.ts",
     "render:string": "node analysis/render-string.ts",
+    "render:soundboard": "node analysis/render-soundboard.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"
