@@ -5,6 +5,7 @@ import {
   barModeFrequencies,
   glassModeFrequencies,
   stringFundamental,
+  woodDecayTime,
   type BarParams,
   type GlassParams,
 } from './audio/engine/physics'
@@ -88,6 +89,38 @@ const INSTRUMENTS: Record<InstrumentId, InstrumentUI> = {
       },
     ],
   },
+  wood: {
+    label: 'Wooden Bar',
+    noteName: 'bar',
+    controls: [
+      { key: 'length', label: 'Bar length (longest bar)' },
+      { key: 'thickness', label: 'Thickness' },
+      { key: 'density', label: 'Wood density' },
+      { key: 'youngsModulus', label: "Stiffness along the grain (Young's modulus)" },
+      { key: 'lossFactor', label: 'Internal damping (loss factor at 1 kHz)' },
+      { key: 'strikePosition', label: 'Strike position (0 end, 0.5 middle)' },
+      { key: 'hardness', label: 'Mallet hardness' },
+      { key: 'velocity', label: 'Strike velocity' },
+      { key: 'resonator', label: 'Resonator tubes' },
+    ],
+    // The same beam equation as the metal bar; only the material differs.
+    frequency: barFrequency,
+    readouts: (v, note) => [
+      { label: 'Longest bar, mode 1 = k₁²h/(2πL²)·√(E/12ρ)', value: hz(barFrequency(v, 0)) },
+      {
+        label: note === null ? 'Last bar struck' : `Last bar struck (bar ${note})`,
+        value: note === null ? '—' : hz(barFrequency(v, note)),
+      },
+      {
+        label: 'Decay time (60 dB) of modes 1, 2, 3',
+        value: barModeFrequencies(v as unknown as BarParams, note ?? 0)
+          .slice(0, 3)
+          .map((f) => `${Math.round(1000 * woodDecayTime(f, v.lossFactor))}`)
+          .join(' / ')
+          .concat(' ms'),
+      },
+    ],
+  },
   glass: {
     label: 'Glass Vessel',
     noteName: 'vessel',
@@ -122,7 +155,7 @@ const INSTRUMENTS: Record<InstrumentId, InstrumentUI> = {
     },
   },
 }
-const IDS = Object.keys(INSTRUMENTS) as InstrumentId[]
+const IDS: InstrumentId[] = ['string', 'bar', 'glass', 'wood'] // selector order
 
 const STATUS_TEXT: Record<EngineStatus['state'], string> = {
   stopped: 'Audio is off. Press Start Audio.',

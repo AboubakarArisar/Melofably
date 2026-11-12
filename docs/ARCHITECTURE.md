@@ -4,10 +4,13 @@ SonicMatter is a browser-based physical-modeling synthesizer. All sound is
 computed sample by sample from physical models. There are no samples,
 wavetables, or stand-in engines anywhere in the signal path.
 
-Status: three models exist. The plucked string (waveguide) is described in
+Status: four models exist. The plucked string (waveguide) is described in
 [STRING_MODEL.md](STRING_MODEL.md), the struck metal bar (modal synthesis) in
-[BAR_MODEL.md](BAR_MODEL.md), and the struck glass vessel (modal synthesis) in
-[GLASS_MODEL.md](GLASS_MODEL.md). Each is its own Faust program and its own
+[BAR_MODEL.md](BAR_MODEL.md), the struck glass vessel (modal synthesis) in
+[GLASS_MODEL.md](GLASS_MODEL.md), and the struck wooden bar (modal synthesis)
+in [WOOD_MODEL.md](WOOD_MODEL.md). `src/audio/models/modal.lib` holds the
+resonator and limiter shared by new modal models; the bar and glass models
+predate it and keep their own copies. Each model is its own Faust program and its own
 WebAssembly module; the engine hosts one at a time and swaps the worklet node
 when the instrument changes.
 
@@ -117,7 +120,7 @@ compiled models`. Nothing under `audio/` imports React.
 
 - **Pure logic** (pitch math, parameter mapping): Vitest in Node.
 - **DSP correctness** (`tests/string.test.ts`, `tests/bar.test.ts`,
-  `tests/glass.test.ts`): render the
+  `tests/glass.test.ts`, `tests/wood.test.ts`): render the
   compiled WASM offline, with no `AudioContext`, and assert on the signal
   itself: measured pitch or modal frequencies, decay, spectral content,
   stability, reproducibility.

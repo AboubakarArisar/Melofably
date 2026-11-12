@@ -5,6 +5,8 @@ import barMeta from '../models/generated/bar/dsp-meta.json'
 import barWasm from '../models/generated/bar/dsp-module.wasm?url'
 import glassMeta from '../models/generated/glass/dsp-meta.json'
 import glassWasm from '../models/generated/glass/dsp-module.wasm?url'
+import woodMeta from '../models/generated/wood/dsp-meta.json'
+import woodWasm from '../models/generated/wood/dsp-module.wasm?url'
 import stringMeta from '../models/generated/string/dsp-meta.json'
 import stringWasm from '../models/generated/string/dsp-module.wasm?url'
 
@@ -17,6 +19,7 @@ export const MODELS = {
   string: { meta: stringMeta, wasmUrl: stringWasm, note: 'fret', trigger: 'pluck' },
   bar: { meta: barMeta, wasmUrl: barWasm, note: 'key', trigger: 'strike' },
   glass: { meta: glassMeta, wasmUrl: glassWasm, note: 'key', trigger: 'strike' },
+  wood: { meta: woodMeta, wasmUrl: woodWasm, note: 'key', trigger: 'strike' },
 }
 
 type MetaItem = Omit<InstrumentParam, 'unit'> & { meta?: { unit?: string }[] }
@@ -28,6 +31,7 @@ export const instrumentParams: Record<InstrumentId, Record<string, InstrumentPar
   string: paramsOf(stringMeta),
   bar: paramsOf(barMeta),
   glass: paramsOf(glassMeta),
+  wood: paramsOf(woodMeta),
 }
 
 /**

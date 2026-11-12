@@ -30,11 +30,11 @@ range; a note plays in the browser with no glitches.
 Phase 2A (approved): struck free-free metal bars by modal synthesis, with an
 instrument selector. See [BAR_MODEL.md](BAR_MODEL.md).
 
-Phase 2B (implemented, awaiting listening evaluation): struck thin-walled
-cylindrical glass vessels by modal synthesis. See
-[GLASS_MODEL.md](GLASS_MODEL.md).
+Phase 2B (approved): struck thin-walled cylindrical glass vessels by modal
+synthesis. See [GLASS_MODEL.md](GLASS_MODEL.md).
 
-Wood is not started.
+Phase 2C (implemented, awaiting listening evaluation): struck wooden bars
+over tube resonators by modal synthesis. See [WOOD_MODEL.md](WOOD_MODEL.md).
 
 - Modal synthesis for bars, plates, bowls, and tubes.
 - Material parameters (stiffness, density, damping) mapped to mode

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dsp": "faust2wasm-ts src/audio/models/string.dsp src/audio/models/generated/string -no-template && faust2wasm-ts src/audio/models/bar.dsp src/audio/models/generated/bar -no-template && faust2wasm-ts src/audio/models/glass.dsp src/audio/models/generated/glass -no-template",
+    "dsp": "faust2wasm-ts src/audio/models/string.dsp src/audio/models/generated/string -no-template && faust2wasm-ts src/audio/models/bar.dsp src/audio/models/generated/bar -no-template && faust2wasm-ts src/audio/models/glass.dsp src/audio/models/generated/glass -no-template && faust2wasm-ts src/audio/models/wood.dsp src/audio/models/generated/wood -no-template",
     "predev": "npm run dsp",
     "prebuild": "npm run dsp",
     "pretest": "npm run dsp",
@@ -14,6 +14,7 @@
     "compare": "node analysis/compare.ts",
     "render:bar": "node analysis/render-bar.ts",
     "render:glass": "node analysis/render-glass.ts",
+    "render:wood": "node analysis/render-wood.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

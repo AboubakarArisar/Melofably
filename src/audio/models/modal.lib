@@ -1,0 +1,43 @@
+// Shared building blocks for struck modal instruments.
+//
+// Used by wood.dsp. bar.dsp and glass.dsp carry their own identical copies of
+// these definitions, written before this library existed; they were approved
+// as they are and have been left untouched.
+
+ma = library("maths.lib");
+fi = library("filters.lib");
+
+clip(lo, hi) = max(lo) : min(hi);
+
+// ---- two-pole resonator -----------------------------------------------------
+// One vibration mode: poles at radius r = e^(-ln(1000) / (decay SR)) and angle
+// w = 2 pi f / SR, zeros at DC and Nyquist. `decay` is the 60 dB decay time in
+// seconds, `g` the gain. r is below 1 for every finite decay, so the filter
+// is unconditionally stable. An impulse produces 2 g r^n cos(n w): the same
+// peak height at every frequency.
+//
+// Coefficients are recomputed every audio block, so cos and e^-x are
+// polynomials rather than library calls:
+//  - sin(x) by its Taylor series to x^13, used as cos(w) = 1 - 2 sin^2(w / 2).
+//    For w / 2 up to 1.42 rad the truncation error is below 2e-10.
+//  - e^(-x) to x^3, with x limited to 0.25 (error below 2e-4 there, and below
+//    1e-8 for x under 0.02, i.e. any decay longer than 7 ms at 48 kHz).
+sinPoly(x) = x * (1 + x2 * (0 - 1.0 / 6 + x2 * (1.0 / 120 + x2 * (0 - 1.0 / 5040
+           + x2 * (1.0 / 362880 + x2 * (0 - 1.0 / 39916800 + x2 / 6227020800))))))
+with { x2 = x * x; };
+cosPoly(w) = 1 - 2 * q * q with { q = sinPoly(w / 2); };
+expNeg(x) = 1 - x + x * x / 2 - x * x * x / 6;
+// 1 - r, to first order: also the reciprocal of the resonator's peak gain.
+poleGap(decay) = min(0.25, 6.9078 / (decay * ma.SR));
+resonator(f, decay, g) = fi.tf2(1, 0, 0 - 1, 0 - 2 * r * cosPoly(w), r * r) * g
+with {
+    w = 2 * ma.PI * f / ma.SR;
+    r = expNeg(poleGap(decay));
+};
+
+// ---- output protection --------------------------------------------------------
+// Transparent below 0.8, then a smooth knee that approaches but never reaches
+// 1: no hard clipping, and no gain change at normal levels.
+softLimit(x) = select2(abs(x) > knee, x,
+    ma.signum(x) * (knee + (1 - knee) * ma.tanh((abs(x) - knee) / (1 - knee))))
+with { knee = 0.8; };

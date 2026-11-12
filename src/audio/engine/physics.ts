@@ -46,6 +46,15 @@ export function barModeFrequencies(p: BarParams, key = 0): number[] {
   return BAR_MODE_K.map((k) => (k * k * h * speed) / (2 * Math.PI * length * length))
 }
 
+/**
+ * 60 dB decay time in seconds of a wooden-bar mode at `f` Hz, for a wood
+ * whose loss factor at 1 kHz is `lossFactor`: a frequency-independent term
+ * (air and supports, 0.7 s) plus a viscoelastic one rising as f^2.
+ */
+export function woodDecayTime(f: number, lossFactor: number): number {
+  return 1 / (1 / 0.7 + (lossFactor * f * f) / 2200)
+}
+
 /** Eigenvalues b_m of a clamped-free beam: roots of cos(b) cosh(b) = -1. */
 export const CANTILEVER_B = [1.875104068712, 4.694091132974]
 

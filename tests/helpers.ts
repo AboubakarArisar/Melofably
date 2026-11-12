@@ -13,7 +13,12 @@ async function load(model: string) {
     soundfiles: {},
   }
 }
-const models = { string: await load('string'), bar: await load('bar'), glass: await load('glass') }
+const models = {
+  string: await load('string'),
+  bar: await load('bar'),
+  glass: await load('glass'),
+  wood: await load('wood'),
+}
 
 const create = async (model: keyof typeof models, trigger: string, params: Params, sampleRate: number) =>
   makeInstrument(
@@ -28,6 +33,9 @@ export const createString = (params: Params = {}, sampleRate = SR) => create('st
 
 /** A fresh instance of the shipped glass vessel model, silent. */
 export const createGlass = (params: Params = {}, sampleRate = SR) => create('glass', 'strike', params, sampleRate)
+
+/** A fresh instance of the shipped wooden bar model, silent. */
+export const createWood = (params: Params = {}, sampleRate = SR) => create('wood', 'strike', params, sampleRate)
 
 /** A fresh instance of the shipped metal bar model, silent. */
 export const createBar = (params: Params = {}, sampleRate = SR) => create('bar', 'strike', params, sampleRate)
