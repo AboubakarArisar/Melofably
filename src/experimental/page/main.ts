@@ -1,6 +1,8 @@
 // EXPERIMENTAL (Phase 3A.1). Development-only test page for the WebAssembly
 // physics engine in a real AudioWorklet. Plain DOM; not part of the application.
 import { createInstrumentNode } from '../../audio/worklet/instruments.ts'
+import { EXAMPLES } from '../../builder/examples.ts'
+import { instrumentCalls, translate } from '../../builder/translate.ts'
 import { INSTANT, RAMP, ZERO_CROSSING, type Call } from '../wasm/engine.ts'
 import { createPhysicsNode, type PhysicsNode } from '../wasm/host.ts'
 import { LAYOUTS, toCalls, tuneCalls, type Layout } from '../wasm/layouts.ts'
@@ -23,6 +25,7 @@ const el = {
   status: $('status'),
   verify: $<HTMLButtonElement>('verify'),
   bench: $<HTMLButtonElement>('bench'),
+  dropouts: $<HTMLButtonElement>('dropouts'),
   results: $('results'),
 }
 
@@ -462,6 +465,102 @@ async function bench() {
   return results
 }
 
+// ---- Dropout comparison ---------------------------------------------------------------
+// The same measurement for an AudioContext with nothing in it, a native
+// oscillator, the physics engine (as this page and as the builder use it) and
+// the approved Faust bar, so that dropouts can be attributed.
+
+interface DropoutCase {
+  name: string
+  hint: AudioContextLatencyCategory
+  make?: (ctx: AudioContext) => Promise<{ node: AudioNode; physics?: PhysicsNode; tick?: () => void }>
+}
+
+async function measureDropouts(c: DropoutCase, seconds: number) {
+  const ctx = new AudioContext({ latencyHint: c.hint })
+  const made = await c.make?.(ctx)
+  made?.node.connect(new GainNode(ctx, { gain: 0.05 })).connect(ctx.destination)
+  if (made?.node instanceof OscillatorNode) made.node.start()
+  await ctx.resume()
+  await sleep(2000) // start-up, and playbackStats' once-a-second refresh
+  const stats = () => {
+    const s = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+    return { events: s?.underrunEvents ?? NaN, duration: s?.underrunDuration ?? NaN }
+  }
+  const [s0, t0, c0, r0] = [stats(), performance.now(), ctx.currentTime, await made?.physics?.report()]
+  let [last, worstGap] = [t0, 0]
+  while (performance.now() - t0 < seconds * 1000) {
+    made?.tick?.()
+    await sleep(100)
+    worstGap = Math.max(worstGap, performance.now() - last)
+    last = performance.now()
+  }
+  await sleep(1200)
+  const [s1, t1, c1, r1] = [stats(), performance.now(), ctx.currentTime, await made?.physics?.report()]
+  const result: Record<string, unknown> = {
+    underrunEvents: Number.isNaN(s1.events) ? 'not reported by this browser' : s1.events - s0.events,
+    underrunMs: Math.round((s1.duration - s0.duration) * 1000),
+    // If the device really ran dry, the context's clock falls behind the wall clock by about that long.
+    contextClockBehindWallClockMs: Math.round(t1 - t0 - (c1 - c0) * 1000),
+    measuredSeconds: Number(((t1 - t0) / 1000).toFixed(1)),
+    baseLatencyMs: Math.round(ctx.baseLatency * 1000),
+    outputLatencyMs: Math.round(ctx.outputLatency * 1000),
+    worstTimerGapMs: Math.round(worstGap),
+  }
+  if (r0 && r1) {
+    const blocks = r1.blocks - r0.blocks
+    Object.assign(result, {
+      blocksProcessed: blocks,
+      blocksExpected: Math.round(((c1 - c0) * ctx.sampleRate) / 128),
+      engineCpuPercent: Number(((100 * (r1.busyMs - r0.busyMs)) / ((blocks * 128 * 1000) / ctx.sampleRate)).toFixed(2)),
+      blocksOver2ms: r1.slowBlocks - r0.slowBlocks,
+      nonFiniteSamples: r1.faults - r0.faults,
+    })
+  }
+  made?.physics?.dispose()
+  made?.node.disconnect()
+  await ctx.close()
+  return result
+}
+
+async function dropoutCheck(seconds = 6, rounds = 2) {
+  await stop()
+  const engine = (calls: (rate: number) => { build: Call[]; play: Call[] }, playing: boolean) => async (ctx: AudioContext) => {
+    const { build, play } = calls(ctx.sampleRate)
+    const physics = await createPhysicsNode(ctx, build, { measure: true })
+    return { node: physics.node, physics, tick: playing ? () => physics.send(play) : undefined }
+  }
+  const testPage = (rate: number) => {
+    const layout = LAYOUTS.threeBars(rate)
+    return { build: toCalls(layout, rate).calls, play: layout.strikePorts.map(([r, p]): Call => ['strike', r, p, PULSE.impulse, PULSE.contact]) }
+  }
+  const builder = (rate: number) => {
+    const graph = EXAMPLES[2].make() // a wooden bar joined to a metal bar, with a mallet
+    const translation = translate(graph, rate)
+    if (!translation.ok) throw new Error('builder example did not translate')
+    return { build: translation.built.calls, play: instrumentCalls(graph, translation.built) }
+  }
+  const cases: DropoutCase[] = [
+    { name: '1. AudioContext with nothing in it', hint: 'interactive' },
+    { name: '2. native oscillator, no worklet', hint: 'interactive', make: async (ctx) => ({ node: new OscillatorNode(ctx, { frequency: 440 }) }) },
+    { name: '3. Phase 3A.1 engine (three coupled bars), idle', hint: 'interactive', make: engine(testPage, false) },
+    { name: '4. Phase 3A.1 engine, struck 10 times a second', hint: 'interactive', make: engine(testPage, true) },
+    { name: '5. builder instrument (wood + metal + mallet), idle', hint: 'interactive', make: engine(builder, false) },
+    { name: '6. builder instrument, played 10 times a second', hint: 'interactive', make: engine(builder, true) },
+    { name: '7. approved Faust bar, 25 bars struck', hint: 'interactive', make: async (ctx) => ({ node: await faustBar(ctx, 25) }) },
+    { name: '8. AudioContext with nothing in it, larger buffer ("playback")', hint: 'playback' },
+    { name: '9. builder instrument, played, larger buffer ("playback")', hint: 'playback', make: engine(builder, true) },
+  ]
+  const results: Record<string, unknown[]> = {}
+  for (let round = 0; round < rounds; round++) {
+    for (const c of cases) {
+      ;(results[c.name] ??= []).push(await measureDropouts(c, seconds))
+      el.results.textContent = `dropout comparison... round ${round + 1}: ${c.name} done`
+    }
+  }
+  return { visibility: document.visibilityState, hardwareConcurrency: navigator.hardwareConcurrency, secondsPerCase: seconds, results }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -486,8 +585,9 @@ el.suspend.onclick = () => toggleSuspend()
 el.rapid.onclick = () => busy(el.rapid, () => rapid())
 el.verify.onclick = () => busy(el.verify, verify)
 el.bench.onclick = () => busy(el.bench, bench)
+el.dropouts.onclick = () => busy(el.dropouts, () => dropoutCheck())
 applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, livePeak, counts } })

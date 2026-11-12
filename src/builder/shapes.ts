@@ -61,3 +61,42 @@ export function zigzag(a: Point, b: Point, teeth = 9, amplitude = 7): string {
   points.push(`${b.x},${b.y}`)
   return points.join(' ')
 }
+
+/**
+ * How close to a component's dot a press must be to start a connection
+ * rather than a move. Deliberately generous: the dot is small, and missing it
+ * would move the component instead, which is not what was meant.
+ */
+export const HANDLE_REACH = 18
+
+/** Whether a press at `p` is on the component's dot. */
+export const onHandle = (c: Component, p: Point): boolean => Math.hypot(p.x - handle(c).x, p.y - handle(c).y) <= HANDLE_REACH
+
+/** The rectangle a component occupies as drawn, with its name above it. */
+function box(c: Component) {
+  const [w, h] = isResonator(c) ? [barSize(c).w, barSize(c).h] : [2 * EXCITER_RADIUS, 2 * EXCITER_RADIUS]
+  return { left: c.x - w / 2 - 12, right: c.x + w / 2 + 12, top: c.y - h / 2 - 30, bottom: c.y + h / 2 + 18 }
+}
+
+/**
+ * Where to put a new component so that it does not cover one already there:
+ * exciters along the top, bars below, scanning left to right and then down.
+ * If the canvas is full it goes to the first position.
+ */
+export function freeSpot(graph: Graph, exciter: boolean, size = { w: 190, h: 70 }): Point {
+  // Bars start on a different row each time, so that connections between neighbours run diagonally and stay readable.
+  const bars = graph.components.filter(isResonator).length
+  const barRows = [250, 340, 430]
+  const rows = exciter ? [90, 170] : [...barRows.slice(bars % 3), ...barRows.slice(0, bars % 3), 500, 170]
+  for (const y of rows) {
+    for (let x = 150; x <= CANVAS.width - 120; x += 40) {
+      const mine = { left: x - size.w / 2, right: x + size.w / 2, top: y - size.h / 2, bottom: y + size.h / 2 }
+      const clear = graph.components.every((c) => {
+        const other = box(c)
+        return mine.right < other.left || mine.left > other.right || mine.bottom < other.top || mine.top > other.bottom
+      })
+      if (clear) return { x, y }
+    }
+  }
+  return { x: 150, y: rows[0] }
+}

@@ -1,8 +1,8 @@
 // EXPERIMENTAL (Phase 3B). The builder's property inspector: the physical
 // properties of the selected component or connection, in plain words.
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Selection } from './Canvas.tsx'
-import { cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isResonator, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
+import { cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isResonator, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
 import { describeBar } from './translate.ts'
 
 interface Props {
@@ -20,11 +20,18 @@ interface Props {
 
 const format = (value: number) => (Number.isFinite(value) ? Number(value.toPrecision(3)).toLocaleString('en', { maximumFractionDigits: 4 }) : 'not a number')
 
-/** One property: a slider for moving it and a box for typing an exact value. */
+/**
+ * One property: a slider for moving it and a box for typing an exact value.
+ * A typed value is used only once it is a number within the property's
+ * range; until then the instrument keeps the last valid value and the box
+ * says what is wrong. Leaving the box puts the valid value back.
+ */
 function Field({ spec, value, onChange, restarts = !spec.live }: { spec: ParamSpec; value: number; onChange(value: number): void; restarts?: boolean }) {
   const id = `field-${spec.key}`
+  const [draft, setDraft] = useState<string | null>(null)
+  const entry = draft === null ? null : parseEntry(draft, spec)
+  const error = entry && 'error' in entry ? entry.error : null
   const log = spec.log && spec.min > 0
-  const bad = !Number.isFinite(value) || value < spec.min || value > spec.max
   const toSlider = (v: number) => (log ? (1000 * Math.log(v / spec.min)) / Math.log(spec.max / spec.min) : v)
   const fromSlider = (s: number) => (log ? Number((spec.min * (spec.max / spec.min) ** (s / 1000)).toPrecision(3)) : s)
   return (
@@ -40,15 +47,19 @@ function Field({ spec, value, onChange, restarts = !spec.live }: { spec: ParamSp
         </label>
         <span className="flex items-baseline gap-1 text-sm">
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             aria-label={`${spec.label}, exact value`}
-            aria-invalid={bad}
-            value={Number.isFinite(value) ? value : ''}
-            min={spec.min}
-            max={spec.max}
-            step="any"
-            onChange={(e) => onChange(e.target.value === '' ? NaN : Number(e.target.value))}
-            className={`w-24 rounded border bg-neutral-950 px-1 py-0.5 text-right tabular-nums ${bad ? 'border-red-400 text-red-300' : 'border-neutral-700 text-neutral-100'}`}
+            aria-invalid={error !== null}
+            value={draft ?? String(value)}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              const typed = parseEntry(e.target.value, spec)
+              if ('value' in typed) onChange(typed.value)
+            }}
+            onBlur={() => setDraft(null)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            className={`w-24 rounded border bg-neutral-950 px-1 py-0.5 text-right tabular-nums ${error ? 'border-red-400 text-red-300' : 'border-neutral-700 text-neutral-100'}`}
           />
           <span className="w-10 text-neutral-400">{spec.unit}</span>
         </span>
@@ -59,17 +70,17 @@ function Field({ spec, value, onChange, restarts = !spec.live }: { spec: ParamSp
         min={log ? 0 : spec.min}
         max={log ? 1000 : spec.max}
         step={log ? 1 : spec.step}
-        value={bad ? (log ? 0 : spec.min) : toSlider(value)}
-        onChange={(e) => onChange(fromSlider(Number(e.target.value)))}
+        value={toSlider(value)}
+        onChange={(e) => {
+          setDraft(null)
+          onChange(fromSlider(Number(e.target.value)))
+        }}
         className="w-full accent-sky-400"
       />
-      <p className="text-xs text-neutral-400">
-        {bad ? <span className="text-red-300">{`Must be between ${format(spec.min)} and ${format(spec.max)} ${spec.unit}. Not used until it is.`}</span> : spec.hint}
-      </p>
+      <p className="text-xs text-neutral-400">{error ? <span className="text-red-300">{error}</span> : spec.hint}</p>
     </div>
   )
 }
-
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   <section aria-label="Properties" className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
     <h2 className="mb-3 text-base font-semibold text-neutral-100">{title}</h2>
@@ -91,6 +102,7 @@ export function Inspector(props: Props) {
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-neutral-400">
         <li>Drag a component by its body to move it.</li>
         <li>Drag from a component's dot to another component to connect them.</li>
+        <li>Double-click a bar or an exciter to strike it.</li>
         <li>A mallet or impulse strike must be connected to the bar it hits.</li>
         <li>Two bars are joined by a spring, a damper, or both.</li>
         <li>
@@ -192,8 +204,8 @@ function ConnectionPanel({ graph, link, onConnection, onParam, onRemove }: Props
               ))}
             </select>
           </div>
-          {link.type !== 'damper' && <Field spec={CONNECTION_PARAMS.stiffness} value={link.stiffness} onChange={(stiffness) => onConnection(link.id, { stiffness })} />}
-          {link.type !== 'spring' && <Field spec={CONNECTION_PARAMS.damping} value={link.damping} onChange={(damping) => onConnection(link.id, { damping })} />}
+          {link.type !== 'damper' && <Field key={`${link.id}-stiffness`} spec={CONNECTION_PARAMS.stiffness} value={link.stiffness} onChange={(stiffness) => onConnection(link.id, { stiffness })} />}
+          {link.type !== 'spring' && <Field key={`${link.id}-damping`} spec={CONNECTION_PARAMS.damping} value={link.damping} onChange={(damping) => onConnection(link.id, { damping })} />}
         </>
       )}
       <h3 className="mb-2 mt-1 text-sm font-semibold text-neutral-200">Connection points</h3>

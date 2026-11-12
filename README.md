@@ -81,6 +81,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:wood` | Render wooden bar WAV files, a wood-versus-metal comparison and metrics into `renders/wooden-bar/` |
 | `npm run render:experimental` | Render the experimental engine's comparison WAV files and performance figures into `renders/experimental/` |
 | `npm run render:wasm` | Render the WebAssembly engine's listening WAV files into `renders/wasm-engine/` |
+| `npm run render:builder` | Render listening WAV files of the builder's three examples into `renders/builder/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

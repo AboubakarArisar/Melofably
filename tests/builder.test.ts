@@ -15,10 +15,14 @@ import {
   CONNECTION_PARAMS,
   deserialize,
   emptyGraph,
+  isExciter,
+  isResonator,
   moveComponent,
+  parseEntry,
   redo,
   removeComponent,
   removeConnection,
+  restore,
   serialize,
   setConnection,
   setMaterial,
@@ -29,7 +33,9 @@ import {
   validateGraph,
   type ComponentType,
   type Graph,
+  type History,
 } from '../src/builder/graph'
+import { barSize, CANVAS, componentAt, EXCITER_RADIUS, freeSpot, handle, HANDLE_REACH, onHandle } from '../src/builder/shapes'
 import { Session, type Backend } from '../src/builder/session'
 import { barCalls, barModes, CONNECTION_PORT, exciterCalls, instrumentCalls, malletStiffness, structureKey, translate, type Built } from '../src/builder/translate'
 import type { Call } from '../src/experimental/wasm/engine'
@@ -288,9 +294,9 @@ describe('Graph-to-engine translation', () => {
     const loose = addComponent(bar.graph, 'mallet', 0, 0)
     graph = loose.graph
     const { built } = translate(graph, SR) as { ok: true; built: Built }
-    expect(built.notes.map((n) => n.id)).toEqual([loose.id, bar.id])
+    expect(built.notes.map((n) => n.id)).toEqual([loose.id, undefined])
     expect(built.notes[0].message).toMatch(/not attached to a bar/)
-    expect(built.notes[1].message).toMatch(/stands alone/)
+    expect(built.notes[1].message).toMatch(/Wooden bar 1 has nothing attached/)
     expect(built.calls.filter((c) => c[0] === 'addResonator')).toHaveLength(1) // the loose mallet is not in the engine
     expect(exciterCalls(graph, built, loose.id)).toEqual([])
     // The lone bar can still be tapped, and the instrument's trigger falls back to that.
@@ -677,7 +683,7 @@ describe('Audio session: lifecycle and parameter updates', () => {
     await session.start(graph)
     const second = addComponent(graph, 'woodBar', 0, 0)
     expect(session.update((graph = second.graph))).toBe('rebuilt')
-    expect(session.state.notes.map((n) => n.id)).toEqual([second.id])
+    expect(session.state.notes.map((n) => n.message)).toEqual(['Wooden bar 1 has nothing attached. Double-click a bar, or use Strike, to tap it directly.'])
     const joined = connect(graph, graph.components[0].id, second.id)
     expect(session.update((graph = joined.graph))).toBe('rebuilt')
     expect(session.state.notes).toEqual([])
@@ -690,5 +696,284 @@ describe('Audio session: lifecycle and parameter updates', () => {
     expect(session.update((graph = emptyGraph()))).toBe('rebuilt')
     expect(session.play()).toBe(false)
     expect(peak(listen(0.1))).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3B.1: regression tests for the problems found while using the builder,
+// and randomised tests that the engine, the graph, undo/redo and saving stay
+// in step with each other.
+
+/** A repeatable source of random numbers in [0, 1). */
+function seeded(seed: number) {
+  let s = seed
+  return () => (s = (s * 48271) % 2147483647) / 2147483647
+}
+
+/** One random edit of the kind a user can make. `structural` false keeps to edits that do not rebuild. */
+function randomEdit(graph: Graph, random: () => number): Graph {
+  const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length)]
+  const types: ComponentType[] = ['metalBar', 'woodBar', 'mallet', 'impulse']
+  const roll = random()
+  if (graph.components.length === 0 || (roll < 0.14 && graph.components.length < 7)) return addComponent(graph, pick(types), 100 + 700 * random(), 80 + 400 * random()).graph
+  if (roll < 0.17) return removeComponent(graph, pick(graph.components).id)
+  if (roll < 0.36) {
+    const [a, b] = [pick(graph.components), pick(graph.components)]
+    return cannotConnect(graph, a.id, b.id) ? graph : connect(graph, a.id, b.id).graph
+  }
+  if (roll < 0.42 && graph.connections.length) return removeConnection(graph, pick(graph.connections).id)
+  if (roll < 0.56 && graph.connections.some((c) => c.type !== 'strike')) {
+    const link = pick(graph.connections.filter((c) => c.type !== 'strike'))
+    const choice = random()
+    if (choice < 0.3) return setConnection(graph, link.id, { type: pick(['spring', 'damper', 'springDamper'] as const) })
+    if (choice < 0.65) return setConnection(graph, link.id, { stiffness: 10 ** (2 + 6 * random()) })
+    return setConnection(graph, link.id, { damping: 100 * random() })
+  }
+  if (roll < 0.62) {
+    const c = pick(graph.components)
+    return moveComponent(graph, c.id, 100 + 700 * random(), 80 + 400 * random())
+  }
+  const c = pick(graph.components)
+  if (TYPES[c.type].materials && random() < 0.15) return setMaterial(graph, c.id, pick(Object.keys(TYPES[c.type].materials!)))
+  const p = pick(TYPES[c.type].params)
+  // Bars are kept long enough to sound, so that the walk stays on buildable instruments.
+  const low = p.key === 'length' ? 0.2 : p.min
+  const high = p.key === 'thickness' ? 20 : p.max
+  return setParam(graph, c.id, p.key, p.log ? low * (high / low) ** random() : low + (high - low) * random())
+}
+
+describe('Phase 3B.1 regressions: interaction', () => {
+  test('pressing near a component\'s dot starts a connection; pressing its body moves it', () => {
+    // Found in use: the dot was a 16-unit target, so a press a few pixels off it moved the bar instead of connecting it.
+    for (const e of EXAMPLES) {
+      for (const c of e.make().components) {
+        const dot = handle(c)
+        for (const [dx, dy] of [[0, 0], [8, 0], [-10, 6], [0, 14], [12, -12]]) expect(onHandle(c, { x: dot.x + dx, y: dot.y + dy }), `${c.name} +${dx},${dy}`).toBe(true)
+        expect(onHandle(c, { x: dot.x + HANDLE_REACH + 1, y: dot.y })).toBe(false)
+        // The far end of a bar, and the top of an exciter, are the body.
+        const far = isResonator(c) ? { x: c.x + barSize(c).w / 2 - 4, y: c.y } : { x: c.x, y: c.y - EXCITER_RADIUS + 3 }
+        expect(onHandle(c, far)).toBe(false)
+        expect(componentAt(e.make(), far)).toBe(c.id)
+      }
+    }
+    expect(HANDLE_REACH).toBeGreaterThanOrEqual(16)
+  })
+
+  test('a new component never lands on top of an existing one, also after deletions', () => {
+    // Found in use: placement depended on how many components there were, so after a deletion a new one covered an old one.
+    const apart = (graph: Graph) => {
+      const boxes = graph.components.map((c) => {
+        const [w, h] = isResonator(c) ? [barSize(c).w, barSize(c).h] : [2 * EXCITER_RADIUS, 2 * EXCITER_RADIUS]
+        return { l: c.x - w / 2, r: c.x + w / 2, t: c.y - h / 2, b: c.y + h / 2 }
+      })
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const [p, q] = [boxes[i], boxes[j]]
+          if (!(p.r < q.l || p.l > q.r || p.b < q.t || p.t > q.b)) return false
+        }
+      }
+      return true
+    }
+    const place = (graph: Graph, type: ComponentType) => {
+      const spot = freeSpot(graph, TYPES[type].kind === 'exciter')
+      expect(spot.x).toBeGreaterThanOrEqual(40)
+      expect(spot.x).toBeLessThanOrEqual(CANVAS.width - 40)
+      expect(spot.y).toBeLessThanOrEqual(CANVAS.height - 40)
+      return addComponent(graph, type, spot.x, spot.y)
+    }
+    let graph = emptyGraph()
+    const order: ComponentType[] = ['mallet', 'metalBar', 'woodBar', 'metalBar', 'impulse', 'woodBar', 'mallet', 'metalBar']
+    for (const type of order) graph = place(graph, type).graph
+    expect(apart(graph)).toBe(true)
+    // Delete from the middle, add again: still nothing covered.
+    graph = removeComponent(removeComponent(graph, graph.components[1].id), graph.components[4].id)
+    for (const type of ['woodBar', 'metalBar', 'mallet'] as ComponentType[]) graph = place(graph, type).graph
+    expect(apart(graph)).toBe(true)
+    // And on top of each example.
+    for (const e of EXAMPLES) expect(apart(place(place(e.make(), 'metalBar').graph, 'impulse').graph), e.label).toBe(true)
+  })
+
+  test('a value being typed is used only when it is a number in range', () => {
+    // Found in review: every keystroke was applied, so typing "0.35" passed through "0", silenced the
+    // instrument and saved an unloadable one.
+    const length = TYPES.metalBar.params.find((p) => p.key === 'length')!
+    for (const text of ['', ' ', '-', '.', 'abc', '1e', '0', '0.0', '0.04', '1.51', '9999', 'NaN', 'Infinity', '-0.3']) {
+      const entry = parseEntry(text, length)
+      expect('error' in entry, `"${text}"`).toBe(true)
+      expect((entry as { error: string }).error).toMatch(/between 0.05 and 1.5 m/)
+    }
+    for (const [text, value] of [['0.3', 0.3], [' 0.30 ', 0.3], ['3e-1', 0.3], ['.5', 0.5], ['0.05', 0.05], ['1.5', 1.5]] as const) expect(parseEntry(text, length)).toEqual({ value })
+    // Typing 0.35 one key at a time: only the last two states are applied, and both are valid.
+    const applied = ['0', '0.', '0.3', '0.35'].map((text) => parseEntry(text, length)).filter((entry) => 'value' in entry)
+    expect(applied).toEqual([{ value: 0.3 }, { value: 0.35 }])
+    expect(parseEntry('500', CONNECTION_PARAMS.damping)).toEqual({ error: 'Must be between 0 and 100 N s/m. The instrument keeps the last valid value.' })
+  })
+
+  test('a saved instrument that cannot be read is reported, never silently replaced', () => {
+    const good = example('mixed')
+    expect(restore(null)).toEqual({ graph: null })
+    expect(restore(serialize(good))).toEqual({ graph: good })
+    for (const text of ['', 'not json', '{}', serialize(setParam(good, good.components[0].id, 'length', NaN)), serialize({ ...good, version: 7 as 1 })]) {
+      const result = restore(text)
+      expect(result.graph).toBeNull()
+      expect(result.problem).toMatch(/Not a saved instrument|cannot be loaded/)
+    }
+  })
+
+  test('bars with nothing attached are mentioned once, not once each', () => {
+    let graph = emptyGraph()
+    for (const type of ['metalBar', 'woodBar', 'metalBar'] as ComponentType[]) graph = addComponent(graph, type, 0, 0).graph
+    const { built } = translate(graph, SR) as { ok: true; built: Built }
+    expect(built.notes).toHaveLength(1)
+    expect(built.notes[0].message).toBe('Metal bar 1, Wooden bar 1 and Metal bar 2 have nothing attached. Double-click a bar, or use Strike, to tap it directly.')
+    const one = translate(addComponent(emptyGraph(), 'woodBar', 0, 0).graph, SR) as { ok: true; built: Built }
+    expect(one.built.notes[0].message).toMatch(/^Wooden bar 1 has nothing attached/)
+  })
+})
+
+describe('Phase 3B.1: the graph, the engine, undo/redo and saving stay in step', () => {
+  function fake() {
+    const log = { opens: 0, closes: 0, rebuilds: 0, sends: 0 }
+    let engine: Engine | null = null
+    const backend: Backend = {
+      async open() {
+        log.opens++
+        engine = createEngine()
+        run(engine, [['reset', SR, 2], ['build']])
+        const mine = engine
+        return { sampleRate: SR, send: (calls) => (log.sends++, run(mine, calls)), rebuild: (calls) => (log.rebuilds++, run(mine, calls)), close: async () => void log.closes++ }
+      },
+    }
+    return { backend, log, engine: () => engine!, listen: (seconds: number) => render(engine!, new Float32Array(Math.round(seconds * SR))) }
+  }
+  const peak = (x: Float32Array) => Math.max(...x.map(Math.abs))
+
+  test('after 400 random edits, undos and redos, the running engine is exactly what a fresh build of the final graph would be', async () => {
+    for (const seed of [11, 2024, 77777]) {
+      const random = seeded(seed)
+      const walked = fake()
+      const session = new Session(walked.backend)
+      let history: History = startHistory(example('single'))
+      await session.start(history.present)
+      const outcomes: Record<string, number> = {}
+      for (let step = 0; step < 400; step++) {
+        const roll = random()
+        history = roll < 0.12 ? undo(history) : roll < 0.2 ? redo(history) : commit(history, randomEdit(history.present, random), '', step)
+        const graph = history.present
+        expect(validateGraph(graph), `seed ${seed} step ${step}`).toEqual([])
+        // What is saved at this step loads back as exactly this graph.
+        expect(restore(serialize(graph)).graph).toEqual(graph)
+        const outcome = session.update(graph)
+        outcomes[outcome] = (outcomes[outcome] ?? 0) + 1
+        expect(outcome).not.toBe('invalid')
+        expect(session.needsRebuild(graph)).toBe(false)
+        expect(session.state.issues).toEqual([])
+      }
+      // Let any stiffness glide finish, then play both and compare sample for sample.
+      const fresh = fake()
+      const reference = new Session(fresh.backend)
+      await reference.start(history.present)
+      for (const e of [walked.engine(), fresh.engine()]) for (let n = 0; n < 600; n++) e.step()
+      const played = [session.play(), reference.play()]
+      expect(played[0]).toBe(played[1])
+      const [a, b] = [walked.listen(0.5), fresh.listen(0.5)]
+      let worst = 0
+      for (let n = 0; n < a.length; n++) worst = Math.max(worst, Math.abs(a[n] - b[n]))
+      console.log(`seed ${seed}:`, JSON.stringify(outcomes), '| components', history.present.components.length, 'connections', history.present.connections.length, '| played', played[0], '| largest difference from a fresh build', worst)
+      expect(worst).toBeLessThanOrEqual(1e-9 * Math.max(peak(b), 1e-12))
+      expect(walked.log.opens).toBe(1) // one engine throughout
+      expect(walked.engine().faults()).toBe(0)
+      expect(outcomes.rebuilt).toBeGreaterThan(50)
+      expect(outcomes.live).toBeGreaterThan(10)
+    }
+  })
+
+  test('undo returns exactly to every earlier state and redo to every later one', () => {
+    const random = seeded(5)
+    let history: History = startHistory(example('coupled'))
+    const states = [history.present]
+    while (states.length < 60) {
+      const next = randomEdit(history.present, random)
+      if (next === history.present) continue
+      history = commit(history, next, '', states.length * 1000)
+      states.push(next)
+    }
+    for (let i = states.length - 2; i >= 0; i--) {
+      history = undo(history)
+      expect(history.present).toBe(states[i])
+    }
+    expect(undo(history)).toBe(history)
+    for (let i = 1; i < states.length; i++) {
+      history = redo(history)
+      expect(history.present).toBe(states[i])
+    }
+    expect(redo(history)).toBe(history)
+    // Deleting a component and undoing brings back its connections with their own values.
+    const graph = example('mixed')
+    const wood = byType(graph, 'woodBar')[0]
+    const edited = setConnection(graph, graph.connections[1].id, { stiffness: 12345, damping: 6.5 })
+    const after = undo(commit(startHistory(edited), removeComponent(edited, wood.id), '', 1))
+    expect(after.present.connections).toEqual(edited.connections)
+    expect(isExciter(after.present.components[2])).toBe(true)
+  })
+
+  test('repeated structural edits while playing: 300 rebuilds, one engine, fixed memory, no faults', async () => {
+    const { backend, log, engine, listen } = fake()
+    const session = new Session(backend)
+    let graph = example('mixed')
+    const [wood, metal, mallet] = [byType(graph, 'woodBar')[0], byType(graph, 'metalBar')[0], byType(graph, 'mallet')[0]]
+    const joint = graph.connections.find((c) => c.type === 'springDamper')!
+    await session.start(graph)
+    const memory = engine().memory.buffer.byteLength
+    const random = seeded(99)
+    let finite = true
+    let loudest = 0
+    const started = performance.now()
+    for (let i = 0; i < 300; i++) {
+      // Each of these rebuilds: a slider dragged through structural values, materials and connection kinds switched.
+      const edits = [
+        () => setParam(graph, wood.id, 'length', 0.25 + 0.5 * random()),
+        () => setParam(graph, metal.id, 'thickness', 4 + 12 * random()),
+        () => setMaterial(graph, metal.id, ['aluminium', 'steel', 'brass', 'bronze'][i % 4]),
+        () => setParam(graph, mallet.id, 'hardness', random()),
+        () => setConnection(graph, joint.id, { type: (['spring', 'damper', 'springDamper'] as const)[Math.floor(i / 6) % 3] }),
+        () => setParam(graph, wood.id, 'connectionPosition', random()),
+      ]
+      graph = edits[i % edits.length]()
+      session.play() // into the instrument that is about to be replaced
+      listen(0.01)
+      expect(session.update(graph), `edit ${i}`).toBe('rebuilt')
+      expect(peak(listen(0.005))).toBe(0) // a rebuild starts from rest
+      session.play()
+      const out = listen(0.03)
+      finite &&= out.every(Number.isFinite)
+      loudest = Math.max(loudest, peak(out))
+    }
+    const ms = performance.now() - started
+    console.log('300 rebuilds with playing between them:', Math.round(ms), 'ms in all |', log, '| faults', engine().faults(), '| loudest', loudest.toFixed(3))
+    expect(finite).toBe(true)
+    expect(loudest).toBeGreaterThan(0.01)
+    expect(log).toMatchObject({ opens: 1, rebuilds: 301 })
+    expect(engine().faults()).toBe(0)
+    expect(engine().memory.buffer.byteLength).toBe(memory)
+    expect(session.state).toMatchObject({ running: true, issues: [], rebuilds: 301 })
+  })
+
+  test('a rebuild takes a fraction of an audio block', () => {
+    const graph = example('mixed')
+    const { built } = translate(graph, SR) as { ok: true; built: Built }
+    const engine = createEngine()
+    const times: number[] = []
+    for (let i = 0; i < 200; i++) {
+      const t0 = performance.now()
+      const translation = translate(graph, SR) as { ok: true; built: Built }
+      const t1 = performance.now()
+      run(engine, translation.built.calls)
+      times.push(performance.now() - t1, t1 - t0)
+    }
+    const median = (v: number[]) => [...v].sort((x, y) => x - y)[Math.floor(v.length / 2)]
+    const [inEngine, translating] = [median(times.filter((_, i) => i % 2 === 0)), median(times.filter((_, i) => i % 2 === 1))]
+    console.log('rebuild of the wood + metal + mallet example: engine calls', built.calls.length, '| median ms in the engine', inEngine.toFixed(3), '| median ms translating', translating.toFixed(3), '(one audio block is 2.667 ms)')
+    expect(inEngine).toBeLessThan(1) // it runs on the audio thread, between two blocks
   })
 })

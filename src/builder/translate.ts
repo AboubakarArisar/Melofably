@@ -130,8 +130,12 @@ export function translate(graph: Graph, sampleRate: number): Translation {
   if (resonators > CAPACITY.resonators || connections > CAPACITY.connections || modeCount > 16384) {
     return { ok: false, issues: [{ message: `The instrument is too large for the physics engine (${resonators} of ${CAPACITY.resonators} bodies, ${connections} of ${CAPACITY.connections} connections).` }] }
   }
-  for (const bar of graph.components.filter(isResonator)) {
-    if (!graph.connections.some((c) => c.from === bar.id || c.to === bar.id)) built.notes.push({ id: bar.id, message: `${bar.name} stands alone: nothing strikes it and nothing is joined to it. "Strike" taps it directly.` })
+  // One note for all of them: a canvas of new bars should not fill the page with messages.
+  const alone = graph.components.filter((bar) => isResonator(bar) && !graph.connections.some((c) => c.from === bar.id || c.to === bar.id))
+  if (alone.length) {
+    const names = alone.map((bar) => bar.name)
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)} have` : `${names[0]} has`
+    built.notes.push({ message: `${list} nothing attached. Double-click a bar, or use Strike, to tap it directly.` })
   }
   calls.push(['build'])
   return { ok: true, built }

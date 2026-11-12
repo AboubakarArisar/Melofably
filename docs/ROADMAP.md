@@ -72,6 +72,11 @@ the engine, live edits where the engine allows and a rebuild otherwise; three
 editable examples. See [BUILDER.md](BUILDER.md). The plan below (generated
 Faust code) was not followed: the engine takes the design as data.
 
+Phase 3B.1 (awaiting review): validation and refinement of the builder, with
+no new components. The reported audio dropouts were traced to the output
+device; interaction problems found by using it were fixed and given
+regression tests. See section 10 of [BUILDER.md](BUILDER.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

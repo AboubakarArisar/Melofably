@@ -1,4 +1,4 @@
-# Instrument builder (Phase 3B)
+# Instrument builder (Phases 3B and 3B.1)
 
 **Status: experimental, development server only.** The builder is a separate
 page (`builder.html`). It is not linked from the application, is not part of
@@ -82,9 +82,10 @@ measurements of any particular piece of metal or wood.
 springs and dampers attach. An exciter has one. Everything attached to a bar
 shares its connection position.
 
-**Limits are documented and enforced, not silently clamped.** A value outside
-its range is rejected with a message naming the property and the range; the
-instrument is then silent until it is corrected. The one exception is in the
+**Limits are documented and enforced, not silently clamped.** A typed value
+outside its range is not applied: the box says what the range is and the
+instrument keeps the last valid value. A saved instrument containing such a
+value is refused on loading, with the reason. The one exception is in the
 engine, from Phase 3A.1: a mode asked to sound above 0.49 x the sample rate
 is held there. The builder cannot reach it, because it drops modes above
 0.45 x first.
@@ -165,9 +166,11 @@ engine produces the same samples as one built from the edited graph
   being built (the offending item is outlined in red); notes about loose
   components; loudness and engine-fault warnings.
 - **Undo and redo** for every graph edit (Ctrl+Z, Ctrl+Y); one drag of a
-  slider is one step.
-- **Keyboard**: components are focusable; Enter selects, arrow keys move,
-  Delete removes, Space plays.
+  slider is one step; the last 100 steps are kept.
+- **Keyboard**: components are focusable; Enter selects, Space strikes,
+  arrow keys move, Delete removes the focused one.
+- **Striking**: double-click a bar or exciter, or use the buttons; the struck
+  bar flashes.
 - **Saving**: the instrument is stored in the browser as it is edited and
   restored on return. `serialize` / `deserialize` validate on load.
 - **Layout**: three columns on a wide screen, one column on a narrow one;
@@ -217,7 +220,8 @@ binary.
 | Parameter updates | Live against rebuild for each property; live-edited equals rebuilt | sample difference 0 |
 | Invalid while running | Engine silenced, reason reported, recovers when fixed | pass |
 
-The whole suite is 171 tests (139 before this phase); all pass. The four
+The whole suite was 171 tests at the end of Phase 3B and is 180 after
+Phase 3B.1 (section 10); all pass. The four
 approved instruments' reference WAV files are byte-identical to their
 recorded hashes.
 
@@ -249,17 +253,8 @@ input except where noted.
 | Phone-sized window (375 px) | One column, no sideways scrolling |
 | 600 strikes, 40 a second, across the three examples (driven by script) | 0 faults; 1 block of 2 ms or more in about 5600; engine load 0.1 to 3.8 % of a core |
 
-**Dropouts.** During the first part of the session (start, play, add, drag,
-connect, edit: about a minute) the browser's dropout count stayed at 1, the
-start-up one recorded in STABILITY.md. Later in the session the count rose
-continuously, about 15 to 25 a second, even with nothing playing. The
-Phase 3A.1 test page, which had run with no dropouts while playing, was
-re-run at that moment and showed the same (14 a second, idle, with the
-engine using 0.03 % of a core). Other applications were then using 33 to
-47 % of the machine's processors. So the dropouts were present with and
-without the builder; their cause was not identified beyond that, and the
-builder has not been observed over a long session on a quiet machine.
-
+**Dropouts.** See section 10: the count the browser reports comes from the
+audio output device, not from the builder.
 ## 9. Known limitations
 
 1. **Structural edits restart the sound** (section 4).
@@ -288,3 +283,133 @@ builder has not been observed over a long session on a quiet machine.
 11. **Development server only**, one browser tested, and not evaluated by
     listening.
 12. **Materials are nominal** (section 2).
+
+## 10. Phase 3B.1: validation and refinement
+
+No new components or features. The builder was used from an empty canvas,
+the problems found were fixed, and each fix has a regression test.
+
+### The audio dropouts
+
+Phase 3B ended with the browser's dropout counter rising 15 to 25 times a
+second. It was measured again under controlled conditions (machine idle at
+about 6 % processor use; "Run dropout comparison" on `experimental.html`
+repeats the measurement). Each case ran for about 7 s, twice.
+
+| What was playing | Dropouts reported | Sound lost (context clock behind wall clock) | Engine blocks late |
+| --- | --- | --- | --- |
+| An AudioContext with nothing in it | 131, 139 | 0, 4 ms | |
+| A native oscillator, no worklet | 97, 129 | 4, 3 ms | |
+| Phase 3A.1 engine, idle | 119, 147 | -1, 8 ms | 0 |
+| Phase 3A.1 engine, struck 10 times a second | 122, 141 | 4, -1 ms | 0 |
+| Builder instrument, idle | 135, 155 | -9, 3 ms | 0 |
+| Builder instrument, played 10 times a second | 139, 106 | 2, 2 ms | 0 |
+| Approved Faust bar | 123, 137 | 3, 2 ms | |
+| Empty context, larger buffer | 160, 123 | 1, 15 ms | |
+| Builder instrument, played, larger buffer | 139, 111 | -4, 3 ms | 0 |
+
+Further measurements on an empty context:
+
+- The rate is the same at 44.1, 48 and 96 kHz and with buffers of 10, 100
+  and 170 ms. Every reported dropout is 5.06 ms long.
+- **With no output device attached** (`sinkId: { type: 'none' }`): 0, 0.
+  With the default device, in the same minute: 51, 66.
+- The builder's three examples played 40 times a second with no output
+  device: 0 dropouts, every block processed (2704 of 2704, 2700 of 2700,
+  2693 of 2693), 0 blocks of 2 ms or more, 1.1 to 3.0 % of a core.
+
+**Conclusion.** The count is produced by the audio output path of the
+machine as it was at the time, with or without anything playing, and is not
+caused by the builder, the engine or the approved instruments. It is not a
+late render thread either: a 170 ms buffer does not change it, the engine
+finishes every block on time, and no audio time goes missing. A Bluetooth
+headset was an active output device when these measurements were taken, and
+was probably not during the earlier sessions that reported none; that it is
+the cause is likely but was not verified, because the output device could
+not be switched from the test page. Whether the reported dropouts are
+audible on that device was not established.
+
+**What changed in the builder.** The status line no longer shows a bare
+dropout total. It shows whether the engine is on time (blocks that took
+2 ms or more since audio started), and the output device's dropout rate over
+the last two seconds, and explains the difference when the device reports
+dropouts while the engine is on time.
+
+### Problems found by using it, and their fixes
+
+| Problem | Fix | Regression test |
+| --- | --- | --- |
+| The dot for starting a connection was a small target; a press slightly off it moved the bar instead. | A press within 18 units of the dot starts a connection (the dot is drawn larger too). | yes |
+| Double-click did nothing. | A second press on the same component within 350 ms strikes it; the struck bar flashes. | browser |
+| Typing a value applied every keystroke: "0.35" passed through "0", silencing the instrument, and an unloadable instrument could be saved. | A typed value is applied only when it is a number in range; otherwise the box explains and the last valid value stays. Leaving the box restores it. | yes |
+| An unreadable saved instrument was silently replaced by the example. | The reason is shown; only instruments that can be loaded again are saved. | yes |
+| A new component could land on top of an existing one after deletions. | Placement looks for free space; bars are staggered so connections stay readable. | yes |
+| Delete on a focused component removed the *selected* item, which could be a different one. | It removes the focused component. Delete elsewhere acts only from the canvas or the page, never from a button or field. | browser |
+| Every bar with nothing attached produced its own note. | One combined note. | yes |
+| Strikes and spring/damper connections looked alike. | Strikes are amber dashed arrows labelled "strikes"; physical links are teal and labelled "spring", "damper" or "spring + damper"; a legend explains them; while dragging a connection, a label says what dropping here will do or why it cannot. | browser |
+| The page jumped when the status text changed length. | The status line has its own row of fixed height. | browser |
+| The selected component could be hidden under another. | It is drawn on top. | browser |
+
+No graph-to-engine synchronisation fault was found. The test written to look
+for one applies 400 random edits, undos and redos (three seeds) to a running
+session and then compares its output, sample for sample, with a session
+built fresh from the final graph: the difference is 0 in all three.
+
+### Tests added (9; `tests/builder.test.ts` now has 41)
+
+| Test | Result |
+| --- | --- |
+| Pressing near the dot connects, pressing the body moves | pass |
+| New components never overlap existing ones, also after deletions | pass |
+| Typed values: 14 unusable texts refused, 6 usable ones accepted, "0.35" key by key | pass |
+| Unreadable saved instruments are reported | pass |
+| One note for bars with nothing attached | pass |
+| 400 random edits, undos and redos x 3 seeds: every state valid, saves and reloads exactly, engine identical to a fresh build | difference 0 |
+| 60 edits undone one by one to every earlier state and redone to every later one | exact |
+| 300 rebuilds with playing in between: one engine, memory fixed, no faults | 179 ms in all |
+| A rebuild's cost on the audio thread | 0.009 ms (a block is 2.667 ms) |
+
+### In the browser
+
+| Check | Observed |
+| --- | --- |
+| Empty canvas, add a mallet and three bars with the Add buttons | Placed apart; one combined note |
+| Three connections dragged from 5 px off each dot | All three made (strike, two spring-and-dampers); nothing moved |
+| Double-click a bar | Struck: peak 0.18 m/s; flash shown; bar not moved |
+| Type 0.45 as a length | Applied; no problem state at any keystroke; one rebuild |
+| Type 7 (out of range), then leave the box | Box red with the range; instrument unchanged and still playable; box returns to the valid value; saved copy valid |
+| Reload | Instrument restored |
+| 100 structural edits 40 ms apart (a slider being dragged), playing throughout | 1 rebuild |
+| 40 structural edits 0.57 s apart, played after each | 40 rebuilds; peak after each 0.22 m/s; 0 faults; one audio node; engine memory unchanged |
+| The same run: engine blocks of 2 ms or more | 4 of 10 414 (measured with a 1 ms clock, while the output device was reporting dropouts) |
+| Time from a structural edit to the page having redrawn, nine components | median 3.3 ms, worst 14 ms |
+| Undo 100 times after those 140 edits | Stops at the 100-step limit, as designed |
+
+### Listening files
+
+`npm run render:builder` writes 14 WAV files to `renders/builder/`, made as
+the page makes sound (the example graph, translated, played through the
+engine in 128-sample blocks by the calls the Play button sends), without
+the browser's volume and limiter. Each group shares one gain;
+`listening.json` records peaks and gains.
+
+| Files | Content |
+| --- | --- |
+| `1a` to `1d` | One metal bar: as loaded; soft mallet; hard mallet; heavier mallet |
+| `1e` | Strike velocity 0.5, 1.5 and 4 m/s (a live property) |
+| `2a` to `2d` | Two bars: as loaded; spring removed; spring ten times stiffer; spring and strong damper |
+| `2e` | Stiffness raised tenfold and lowered again while ringing (live) |
+| `3a` to `3d` | Wood and metal: as loaded; connection removed; spring ten times stiffer; wood damping x0.3 |
+
+All 14 rendered with no engine fault; the contact solver needed at most 5
+iterations. How they sound is for listening to decide.
+
+### Still open after Phase 3B.1
+
+- Everything in section 9 except where this section says otherwise.
+- The cause of the output-device dropouts is inferred, not proven; and the
+  builder has still not been run for a long session by a person.
+- Four engine blocks in about ten thousand took 2 ms or more during the
+  browser stress run. The clock available cannot say by how much, or
+  whether the cause was the engine or the machine.
+- Mouse and keyboard were tested; touch was not.

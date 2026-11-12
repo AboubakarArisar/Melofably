@@ -337,3 +337,30 @@ export function commit(h: History, next: Graph, key = '', time = 0): History {
 }
 export const undo = (h: History): History => (h.past.length ? { past: h.past.slice(0, -1), present: h.past.at(-1)!, future: [h.present, ...h.future] } : h)
 export const redo = (h: History): History => (h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h)
+
+// ---- Typing a value, and restoring a saved instrument ---------------------------------------
+
+/**
+ * What a typed value means for a property: the number, or why it cannot be
+ * used. Text that is not yet a number ("", "-", "1e") is an error, not zero.
+ */
+export function parseEntry(text: string, spec: ParamSpec): { value: number } | { error: string } {
+  const value = text.trim() === '' ? NaN : Number(text)
+  const range = `between ${spec.min} and ${spec.max}${spec.unit ? ` ${spec.unit}` : ''}`
+  if (!Number.isFinite(value)) return { error: `Enter a number ${range}.` }
+  if (value < spec.min || value > spec.max) return { error: `Must be ${range}. The instrument keeps the last valid value.` }
+  return { value }
+}
+
+/**
+ * The instrument saved in the browser, or the reason it could not be used.
+ * `null` text means nothing was saved.
+ */
+export function restore(text: string | null): { graph: Graph | null; problem?: string } {
+  if (text === null) return { graph: null }
+  try {
+    return { graph: deserialize(text) }
+  } catch (error) {
+    return { graph: null, problem: error instanceof Error ? error.message : String(error) }
+  }
+}

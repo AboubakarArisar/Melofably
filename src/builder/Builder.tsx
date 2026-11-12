@@ -10,12 +10,12 @@ import {
   cannotConnect,
   commit,
   connect,
-  deserialize,
   emptyGraph,
   moveComponent,
   redo,
   removeComponent,
   removeConnection,
+  restore,
   serialize,
   setConnection,
   setMaterial,
@@ -23,27 +23,31 @@ import {
   startHistory,
   TYPES,
   undo,
+  validateGraph,
   type ComponentType,
   type Graph,
   type History,
 } from './graph.ts'
 import { Inspector } from './Inspector.tsx'
 import { Session, type SessionState } from './session.ts'
-import { CANVAS } from './shapes.ts'
+import { freeSpot } from './shapes.ts'
 
 const STORAGE_KEY = 'sonicmatter.builder.instrument'
 /** How long to wait after the last structural edit before rebuilding, so that dragging a slider restarts the sound once. */
 const REBUILD_DELAY = 250 // ms
 
-function initialGraph(): Graph {
+/** The instrument saved in this browser, or the first example; with the reason if a saved one could not be used. */
+function initial(): { graph: Graph; problem?: string } {
+  let saved: string | null = null
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return deserialize(saved)
+    saved = localStorage.getItem(STORAGE_KEY)
   } catch {
-    // Nothing saved, storage unavailable, or a saved instrument this version cannot read: start from the first example.
+    // Storage is unavailable (private window, blocked): the builder works without it.
   }
-  return EXAMPLES[0].make()
+  const restored = restore(saved)
+  return { graph: restored.graph ?? EXAMPLES[0].make(), problem: restored.problem }
 }
+const INITIAL = initial()
 
 type Action = { type: 'edit'; graph: Graph; key?: string } | { type: 'undo' } | { type: 'redo' }
 const reducer = (h: History, action: Action): History => (action.type === 'edit' ? commit(h, action.graph, action.key, performance.now()) : action.type === 'undo' ? undo(h) : redo(h))
@@ -52,11 +56,12 @@ const button = 'rounded border border-neutral-600 bg-neutral-800 px-3 py-1.5 tex
 const primary = 'rounded border border-sky-400 bg-sky-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
 
 export default function Builder() {
-  const [history, dispatch] = useReducer(reducer, undefined, () => startHistory(initialGraph()))
+  const [history, dispatch] = useReducer(reducer, INITIAL.graph, startHistory)
   const graph = history.present
   const [selection, setSelection] = useState<Selection>(null)
   const [state, setState] = useState<SessionState>({ running: false, issues: [], notes: [], rebuilds: 0 })
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(INITIAL.problem ? `The instrument saved in this browser could not be used, so the first example was loaded instead. ${INITIAL.problem}` : '')
+  const [struck, setStruck] = useState<{ ids: string[]; n: number }>({ ids: [], n: 0 })
   const [failure, setFailure] = useState('')
   const [lastMeter, setMeter] = useState<Meter | null>(null)
   const [volume, setVolume] = useState(0.7)
@@ -65,6 +70,8 @@ export default function Builder() {
   const backend = useMemo(() => new BrowserBackend(), [])
   const session = useMemo(() => new Session(backend, setState), [backend])
   const latest = useRef(graph)
+  const [dropoutRate, setDropoutRate] = useState(0)
+  const dropoutWindow = useRef<{ count: number; time: number } | null>(null)
   const meter = state.running ? lastMeter : null
 
   const edit = useCallback((next: Graph, key?: string) => dispatch({ type: 'edit', graph: next, key }), [])
@@ -72,10 +79,13 @@ export default function Builder() {
   // Keep the engine in step with the graph. Live properties go at once; a
   // structural change waits for a pause, then rebuilds (the sound restarts).
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, serialize(graph))
-    } catch {
-      // Saving is a convenience; the builder works without it.
+    // Only an instrument that can be loaded again is saved: a broken one must never replace a good one.
+    if (validateGraph(graph).length === 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, serialize(graph))
+      } catch {
+        // Saving is a convenience; the builder works without it.
+      }
     }
     const apply = () => {
       const outcome = session.update(graph)
@@ -91,8 +101,25 @@ export default function Builder() {
   useEffect(() => backend.setVolume(volume), [backend, volume])
   useEffect(() => {
     if (!state.running) return
-    const timer = setInterval(() => void backend.meter().then(setMeter), 250)
-    return () => clearInterval(timer)
+    const timer = setInterval(
+      () =>
+        void backend.meter().then((next) => {
+          setMeter(next)
+          // The browser refreshes its dropout count about once a second: compare readings two seconds apart.
+          const now = performance.now()
+          const seen = dropoutWindow.current
+          if (next && next.underruns !== null && (seen === null || now - seen.time >= 2000)) {
+            if (seen) setDropoutRate((1000 * (next.underruns - seen.count)) / (now - seen.time))
+            dropoutWindow.current = { count: next.underruns, time: now }
+          }
+        }),
+      250,
+    )
+    return () => {
+      clearInterval(timer)
+      dropoutWindow.current = null // the next context counts from zero
+      setDropoutRate(0)
+    }
   }, [backend, state.running])
   useEffect(() => () => void session.stop(), [session])
 
@@ -114,20 +141,26 @@ export default function Builder() {
     setNotice('Audio is off.')
     setBusy(false)
   }
+  /** Flash the bars that were just struck. */
+  const flash = (ids: string[]) => setStruck((s) => ({ ids, n: s.n + 1 }))
+  const targets = (exciters: Graph['components']) => graph.connections.filter((c) => c.type === 'strike' && exciters.some((e) => e.id === c.from)).map((c) => c.to)
   const play = () => {
-    if (!session.play()) setNotice(state.running ? 'There is nothing to play yet: add a bar.' : 'Start audio first.')
+    if (!session.play()) return setNotice(state.running ? 'There is nothing to play yet: add a bar.' : 'Start audio first.')
+    const struckBars = targets(graph.components)
+    flash(struckBars.length ? struckBars : graph.components.filter((c) => TYPES[c.type].kind === 'resonator').map((c) => c.id))
   }
   const strike = (id: string) => {
     const item = graph.components.find((c) => c.id === id)
-    const played = item && TYPES[item.type].kind === 'resonator' ? session.strikeBar(id) : session.strikeExciter(id)
-    if (!played) setNotice(state.running ? `${item?.name ?? 'It'} is not attached to a bar, so there is nothing to strike.` : 'Start audio first.')
+    if (!item) return
+    const bar = TYPES[item.type].kind === 'resonator'
+    const played = bar ? session.strikeBar(id) : session.strikeExciter(id)
+    if (played) flash(bar ? [id] : targets([item]))
+    else setNotice(!state.running ? 'Start audio first.' : state.issues.length ? 'Fix the problems listed below first.' : `${item.name} is not attached to a bar, so there is nothing to strike. Drag from its dot to a bar.`)
   }
 
   const add = (type: ComponentType) => {
-    // New components step across the canvas so that they do not land on top of each other.
-    const n = graph.components.length
-    const exciter = TYPES[type].kind === 'exciter'
-    const added = addComponent(graph, type, 180 + ((n * 170) % (CANVAS.width - 360)), (exciter ? 90 : 240) + ((n * 70) % 240))
+    const spot = freeSpot(graph, TYPES[type].kind === 'exciter')
+    const added = addComponent(graph, type, spot.x, spot.y)
     edit(added.graph)
     setSelection({ kind: 'component', id: added.id })
   }
@@ -138,11 +171,11 @@ export default function Builder() {
     edit(joined.graph)
     setSelection({ kind: 'connection', id: joined.id })
   }
-  const remove = () => {
-    if (!selection) return
-    edit(selection.kind === 'component' ? removeComponent(graph, selection.id) : removeConnection(graph, selection.id))
-    setSelection(null)
+  const removeItem = (target: NonNullable<Selection>) => {
+    edit(target.kind === 'component' ? removeComponent(graph, target.id) : removeConnection(graph, target.id))
+    if (selection?.id === target.id) setSelection(null)
   }
+  const remove = () => selection && removeItem(selection)
   const load = (next: Graph) => {
     edit(next)
     setSelection(null)
@@ -153,13 +186,15 @@ export default function Builder() {
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement
       const mod = e.ctrlKey || e.metaKey
+      // In a text box, Ctrl+Z belongs to the text being typed.
+      if (mod && e.target instanceof HTMLInputElement && e.target.type === 'text') return
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         dispatch({ type: e.shiftKey ? 'redo' : 'undo' })
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         dispatch({ type: 'redo' })
-      } else if (!typing && (e.key === 'Delete' || e.key === 'Backspace') && selection && !(e.target instanceof SVGElement)) remove()
+      } else if (e.key === 'Delete' && selection && (e.target === document.body || e.target instanceof SVGElement)) remove() // never from a button or a field
       else if (!typing && e.key === ' ' && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof SVGElement)) {
         e.preventDefault()
         play()
@@ -181,6 +216,7 @@ export default function Builder() {
   })
 
   const load01 = meter ? Math.min(1, Math.max(0, (20 * Math.log10(Math.max(meter.peak, 1e-4) / 4) + 72) / 72)) : 0
+  const late = meter?.engine.slowBlocks ?? 0
   const cpu = meter && meter.engine.blocks ? (100 * meter.engine.busyMs) / ((meter.engine.blocks * 128 * 1000) / meter.sampleRate) : 0
 
   return (
@@ -235,9 +271,10 @@ export default function Builder() {
             <div className={`h-full ${meter?.overloaded ? 'bg-red-400' : meter && meter.limiting > 0.5 ? 'bg-amber-300' : 'bg-emerald-400'}`} style={{ width: `${100 * load01}%` }} />
           </div>
         </div>
-        <output className="text-sm text-neutral-400">
+        {/* Always its own line of fixed height, so that the page does not jump when the text changes. */}
+        <output className="min-h-10 basis-full text-sm text-neutral-400">
           {state.running && meter
-            ? `Audio ${meter.state} at ${meter.sampleRate} Hz · engine load ${cpu.toFixed(1)} % of one core · dropouts ${meter.underruns ?? 'not reported'} · rebuilt ${Math.max(0, state.rebuilds - 1)} times`
+            ? `Audio ${meter.state} at ${meter.sampleRate} Hz · engine load ${cpu.toFixed(1)} % of one core · ${late === 0 ? 'engine on time' : `engine late ${late} time${late === 1 ? '' : 's'}`} · output device dropouts: ${meter.underruns === null ? 'not reported by this browser' : dropoutRate < 0.5 ? 'none now' : `about ${Math.round(dropoutRate)} a second`} · rebuilt ${Math.max(0, state.rebuilds - 1)} times`
             : state.running
               ? 'Audio starting…'
               : 'Audio is off'}
@@ -265,7 +302,17 @@ export default function Builder() {
         </nav>
 
         <main className="min-w-0">
-          <Canvas graph={graph} selection={current} flagged={flagged} onSelect={setSelection} onMove={(id, x, y) => edit(moveComponent(graph, id, x, y), `move:${id}`)} onConnect={join} onRemove={remove} />
+          <Canvas
+            graph={graph}
+            selection={current}
+            flagged={flagged}
+            struck={struck}
+            onSelect={setSelection}
+            onMove={(id, x, y) => edit(moveComponent(graph, id, x, y), `move:${id}`)}
+            onConnect={join}
+            onRemoveComponent={(id) => removeItem({ kind: 'component', id })}
+            onStrike={strike}
+          />
           <div className="mt-3 space-y-2 text-sm">
             <p aria-live="polite" className="min-h-5 text-neutral-300">
               {notice}
@@ -285,6 +332,13 @@ export default function Builder() {
                 The instrument is far too loud: its output is being cut off, which distorts it. Use a lighter, softer or slower mallet.
               </p>
             )}
+            {meter && dropoutRate >= 1 && late === 0 && (
+              <p className="text-neutral-400">
+                The browser is reporting dropouts on the audio output device. They do not come from this instrument: the engine is finishing every block of sound on time, and the same count appears with nothing playing. If you hear crackling, try another output
+                device.
+              </p>
+            )}
+            {late > 0 && <p className="text-amber-200">{`The engine took too long ${late} time${late === 1 ? '' : 's'} since audio started, which can be heard as a click. Fewer connections or mallets make it lighter.`}</p>}
             {meter && !meter.overloaded && meter.limiting > 0.5 && <p className="text-amber-200">{`Loud: the limiter is turning it down by ${meter.limiting.toFixed(0)} dB. Lower the volume or strike more gently.`}</p>}
             {state.issues.length > 0 && (
               <div role="alert" className="rounded border border-red-400 bg-red-950 p-2 text-red-200">
