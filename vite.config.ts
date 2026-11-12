@@ -10,6 +10,7 @@ export default defineConfig({
     testTimeout: 60_000,
     // The package's "main" is an IIFE build, which is what Node resolves.
     // Point tests at its ESM build (the browser bundle uses "module" already).
-    alias: { '@grame/faustwasm': '@grame/faustwasm/dist/esm/index.js' },
+    // (Exact match only: deeper imports of the package are left alone.)
+    alias: [{ find: /^@grame\/faustwasm$/, replacement: '@grame/faustwasm/dist/esm/index.js' }],
   },
 })

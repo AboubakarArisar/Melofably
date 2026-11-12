@@ -16,22 +16,34 @@ export const fsPath = (rel: string) => decodeURIComponent(path(rel).pathname).re
  * offline instances of it. `trigger` is the model's note-start counter.
  */
 export async function compileModel(dsp: string, trigger: string) {
-  const build = `analysis/build/${dsp.replace(/\W/g, '-')}`
+  const { factory } = await compileFactory(dsp)
+  return async (params: Params = {}) =>
+    makeInstrument(await new FaustMonoDspGenerator().createOfflineProcessor(SR, 128, factory), params, SR, trigger)
+}
+
+/**
+ * Compile `dsp` (project-relative) with extra Faust arguments (e.g. "-double")
+ * and return the factory for createOfflineProcessor, with how long the
+ * compilation took.
+ */
+export async function compileFactory(dsp: string, args: string[] = []) {
+  const build = `analysis/build/${dsp.replace(/\W/g, '-')}-${process.pid}`
   const log = console.log
   console.log = () => {} // the compiler is chatty
+  const started = performance.now()
   try {
-    await faust2wasmFiles(fsPath(dsp), fsPath(build), [], false)
+    await faust2wasmFiles(fsPath(dsp), fsPath(build), [...args], false)
   } finally {
     console.log = log
   }
+  const compileMs = performance.now() - started
   const factory = {
     module: await WebAssembly.compile(readFileSync(path(`${build}/dsp-module.wasm`))),
     json: readFileSync(path(`${build}/dsp-meta.json`), 'utf8'),
     soundfiles: {},
   }
-  rmSync(path('analysis/build'), { recursive: true, force: true })
-  return async (params: Params = {}) =>
-    makeInstrument(await new FaustMonoDspGenerator().createOfflineProcessor(SR, 128, factory), params, SR, trigger)
+  rmSync(path(build), { recursive: true, force: true })
+  return { factory, compileMs }
 }
 
 /** Empty and recreate a project-relative output folder. */

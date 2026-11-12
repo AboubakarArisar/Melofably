@@ -52,6 +52,12 @@ for its geometry.
 
 ## Phase 3: Custom instrument construction
 
+Phase 3A (experiment, awaiting review): a proof of concept of a data-driven
+physics engine with genuine two-way coupling and nonlinear contact, kept in
+`src/experimental/` and not used by the application. Results and
+recommendation: [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). No decision
+to adopt it has been made.
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

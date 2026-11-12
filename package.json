@@ -16,6 +16,7 @@
     "render:bar": "node analysis/render-bar.ts",
     "render:glass": "node analysis/render-glass.ts",
     "render:wood": "node analysis/render-wood.ts",
+    "render:experimental": "node analysis/render-experimental.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

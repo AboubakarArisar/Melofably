@@ -24,6 +24,7 @@ Documentation:
 - [Wooden bar model and the limits of treating wood as a beam](docs/WOOD_MODEL.md)
 - [Stability, loading and performance](docs/STABILITY.md)
 - [Instrument builder: architecture design (not yet built)](docs/BUILDER_ARCHITECTURE.md)
+- [Experimental physics engine: proof of concept and results](docs/EXPERIMENTAL_ENGINE.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -68,6 +69,7 @@ Then open http://localhost:5173.
 | `npm run render:bar` | Render metal bar WAV files and metrics into `renders/metal-bar/` |
 | `npm run render:glass` | Render glass vessel WAV files and metrics into `renders/glass-vessel/` |
 | `npm run render:wood` | Render wooden bar WAV files, a wood-versus-metal comparison and metrics into `renders/wooden-bar/` |
+| `npm run render:experimental` | Render the experimental engine's comparison WAV files and performance figures into `renders/experimental/` |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run lint` | Lint with oxlint |
