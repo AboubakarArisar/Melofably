@@ -29,3 +29,6 @@ src/audio/models/generated
 # Before/after audio (npm run compare)
 renders
 analysis/build
+
+# Compiled physics engine (npm run engine)
+src/experimental/wasm/generated

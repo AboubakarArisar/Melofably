@@ -16,6 +16,7 @@ import {
   strikeBar,
   strikeWithMallet,
   System,
+  systemFrequencies,
   type Mode,
 } from '../analysis/experimental'
 import { compileFactory } from '../analysis/offline'
@@ -227,52 +228,8 @@ describe('Experiment A: metal bar parity with the approved Faust model', () => {
 /** A single undamped oscillator with one port. */
 const oscillator = (frequency: number, mass: number, t60 = Infinity): Mode[] => [{ frequency, t60, mass, shape: [1] }]
 
-/** Eigenvalues of a small symmetric matrix (cyclic Jacobi), ascending. */
-function symmetricEigenvalues(input: number[][]): number[] {
-  const n = input.length
-  const a = input.map((row) => [...row])
-  for (let sweep = 0; sweep < 100; sweep++) {
-    let off = 0
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += a[i][j] * a[i][j]
-    if (off < 1e-22 * a.reduce((s, row, i) => s + row[i] * row[i], 0)) break
-    for (let p = 0; p < n; p++) {
-      for (let q = p + 1; q < n; q++) {
-        if (a[p][q] === 0) continue
-        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q])
-        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1))
-        const c = 1 / Math.sqrt(t * t + 1)
-        const s = t * c
-        for (let k = 0; k < n; k++) {
-          const [akp, akq] = [a[k][p], a[k][q]]
-          a[k][p] = c * akp - s * akq
-          a[k][q] = s * akp + c * akq
-        }
-        for (let k = 0; k < n; k++) {
-          const [apk, aqk] = [a[p][k], a[q][k]]
-          a[p][k] = c * apk - s * aqk
-          a[q][k] = s * apk + c * aqk
-        }
-      }
-    }
-  }
-  return a.map((row, i) => row[i]).sort((x, y) => x - y)
-}
-
-/**
- * Frequencies of two modal objects joined by a spring between port 0 of
- * each, from continuous-time theory: the eigenvalues of M^-1/2 K M^-1/2 with
- * K = diag(m w^2) + kc g g^T, g = (shapes of a, minus shapes of b).
- */
-function coupledFrequencies(a: Mode[], b: Mode[], kc: number): number[] {
-  const all = [...a.map((m) => ({ ...m, sign: 1 })), ...b.map((m) => ({ ...m, sign: -1 }))]
-  const K = all.map((mi, i) =>
-    all.map((mj, j) => {
-      const coupling = (kc * mi.sign * mi.shape[0] * mj.sign * mj.shape[0]) / Math.sqrt(mi.mass * mj.mass)
-      return (i === j ? (2 * Math.PI * mi.frequency) ** 2 : 0) + coupling
-    }),
-  )
-  return symmetricEigenvalues(K).map((lambda) => Math.sqrt(lambda) / (2 * Math.PI))
-}
+/** Frequencies of two modal objects joined by a spring between port 0 of each, from continuous-time theory. */
+const coupledFrequencies = (a: Mode[], b: Mode[], kc: number) => systemFrequencies([a, b], [{ a: [0, 0], b: [1, 0], stiffness: kc }])
 
 describe('Experiment B: two resonators joined by a spring', () => {
   const [f0, mass] = [440, 0.1]

@@ -190,3 +190,63 @@ export function hertzContactTime(mass: number, velocity: number, stiffness: numb
   const compression = ((5 * mass * velocity * velocity) / (4 * stiffness)) ** 0.4
   return (2.9432 * compression) / velocity
 }
+
+// ---- Theory: frequencies of resonators joined by springs --------------------------
+
+/** Eigenvalues of a small symmetric matrix (cyclic Jacobi), ascending. */
+export function symmetricEigenvalues(input: number[][]): number[] {
+  const n = input.length
+  const a = input.map((row) => [...row])
+  for (let sweep = 0; sweep < 100; sweep++) {
+    let off = 0
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += a[i][j] * a[i][j]
+    if (off < 1e-22 * a.reduce((s, row, i) => s + row[i] * row[i], 0)) break
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) {
+        if (a[p][q] === 0) continue
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q])
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1))
+        const c = 1 / Math.sqrt(t * t + 1)
+        const s = t * c
+        for (let k = 0; k < n; k++) {
+          const [akp, akq] = [a[k][p], a[k][q]]
+          a[k][p] = c * akp - s * akq
+          a[k][q] = s * akp + c * akq
+        }
+        for (let k = 0; k < n; k++) {
+          const [apk, aqk] = [a[p][k], a[q][k]]
+          a[p][k] = c * apk - s * aqk
+          a[q][k] = s * apk + c * aqk
+        }
+      }
+    }
+  }
+  return a.map((row, i) => row[i]).sort((x, y) => x - y)
+}
+
+export interface SpringLink {
+  a: [resonator: number, port: number]
+  b: [resonator: number, port: number]
+  stiffness: number
+}
+
+/**
+ * Frequencies (Hz, ascending) of undamped modal objects joined by springs,
+ * from continuous-time theory, independent of any time stepping: the
+ * eigenvalues of M^-1/2 K M^-1/2 with K = diag(m w^2) + sum of k g g^T, where
+ * g holds the mode shapes at the spring's two ends (the second negated).
+ */
+export function systemFrequencies(resonators: Mode[][], springs: SpringLink[]): number[] {
+  const all = resonators.flatMap((modes, r) => modes.map((mode) => ({ ...mode, r })))
+  const K = all.map((mi, i) =>
+    all.map((mj, j) => {
+      let coupling = 0
+      for (const s of springs) {
+        const g = (m: (typeof all)[number]) => (m.r === s.a[0] ? m.shape[s.a[1]] : 0) - (m.r === s.b[0] ? m.shape[s.b[1]] : 0)
+        coupling += s.stiffness * g(mi) * g(mj)
+      }
+      return (i === j ? (2 * Math.PI * mi.frequency) ** 2 : 0) + coupling / Math.sqrt(mi.mass * mj.mass)
+    }),
+  )
+  return symmetricEigenvalues(K).map((lambda) => Math.sqrt(Math.max(lambda, 0)) / (2 * Math.PI))
+}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SonicMatter: experimental physics engine</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; background: #111418; color: #e6e8eb; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+      h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+      p.note { color: #9aa3ad; margin-top: 0; }
+      fieldset { border: 1px solid #2c333b; border-radius: 6px; margin: 1rem 0; padding: 0.75rem 1rem; }
+      legend { color: #9aa3ad; padding: 0 0.4rem; }
+      button, select { font: inherit; color: inherit; background: #1f262d; border: 1px solid #3a434d; border-radius: 4px; padding: 0.3rem 0.7rem; margin: 0.15rem 0.2rem 0.15rem 0; cursor: pointer; }
+      button:hover:not(:disabled) { background: #2a333c; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #6cb2ff; outline-offset: 2px; }
+      label { display: grid; grid-template-columns: 13rem 1fr 6rem; gap: 0.75rem; align-items: center; margin: 0.3rem 0; }
+      label.check { display: flex; gap: 0.5rem; }
+      output { font-variant-numeric: tabular-nums; color: #9aa3ad; }
+      pre { background: #0b0d10; border: 1px solid #2c333b; border-radius: 6px; padding: 0.75rem; overflow: auto; font-size: 13px; }
+      [role='alert'] { color: #ff8a80; min-height: 1.5em; }
+    </style>
+  </head>
+  <body>
+    <h1>Experimental physics engine (WebAssembly, AudioWorklet)</h1>
+    <p class="note">Phase 3A.1 test page. Development only; separate from the four approved instruments, which it does not touch.</p>
+    <div id="error" role="alert"></div>
+
+    <fieldset>
+      <legend>Audio</legend>
+      <select id="layout" aria-label="System"></select>
+      <button id="start">Start</button>
+      <button id="suspend" disabled>Suspend</button>
+      <button id="stop" disabled>Stop</button>
+      <output id="state">stopped</output>
+    </fieldset>
+
+    <fieldset>
+      <legend>Play</legend>
+      <div id="strikes"></div>
+      <button id="rapid" disabled>Rapid playing: 40 strikes a second for 5 s</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Edit while it sounds</legend>
+      <label>Connection stiffness <input id="stiffness" type="range" min="4" max="7.5" step="0.01" value="5.6" disabled /> <output id="stiffnessValue"></output></label>
+      <label>Connection damping <input id="damping" type="range" min="0" max="20" step="0.1" value="1" disabled /> <output id="dampingValue"></output></label>
+      <label>Bar A frequency <input id="tune" type="range" min="0.8" max="1.25" step="0.001" value="1" disabled /> <output id="tuneValue"></output></label>
+      <label>Bar A decay time <input id="decay" type="range" min="0.02" max="1" step="0.01" value="1" disabled /> <output id="decayValue"></output></label>
+      <label class="check"><input id="joined" type="checkbox" checked disabled /> Third bar connected (three-bar system)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Status</legend>
+      <pre id="status" aria-live="off">not running</pre>
+    </fieldset>
+
+    <fieldset>
+      <legend>Measurements</legend>
+      <button id="verify">Run lifecycle checks</button>
+      <button id="bench">Run benchmarks</button>
+      <pre id="results">none yet</pre>
+    </fieldset>
+
+    <script type="module" src="/src/experimental/page/main.ts"></script>
+  </body>
+</html>
