@@ -30,6 +30,7 @@ Documentation:
 - [Experimental physics engine: proof of concept and results](docs/EXPERIMENTAL_ENGINE.md)
 - [Experimental engine in WebAssembly: browser validation and results](docs/WASM_ENGINE.md)
 - [Instrument builder: what it is, how it maps to the engine, tests, limitations](docs/BUILDER.md)
+- [Physically coupled string: prototype, measurements and recommendation](docs/STRING_PROTOTYPE.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -82,6 +83,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:experimental` | Render the experimental engine's comparison WAV files and performance figures into `renders/experimental/` |
 | `npm run render:wasm` | Render the WebAssembly engine's listening WAV files into `renders/wasm-engine/` |
 | `npm run render:builder` | Render listening WAV files of the builder's three examples into `renders/builder/` |
+| `npm run render:string` | Render the coupled-string prototype's listening files and performance figures into `renders/coupled-string/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

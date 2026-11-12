@@ -77,6 +77,12 @@ no new components. The reported audio dropouts were traced to the output
 device; interaction problems found by using it were fixed and given
 regression tests. See section 10 of [BUILDER.md](BUILDER.md).
 
+Phase 3C.1 (prototype, awaiting review): a vibrating string physically joined
+to one resonator, isolated from the builder. A modal string and a waveguide
+string were measured side by side against theory and against the approved
+Faust string. See [STRING_PROTOTYPE.md](STRING_PROTOTYPE.md). Strings are not
+in the builder.
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

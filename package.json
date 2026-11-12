@@ -20,6 +20,7 @@
     "render:experimental": "node analysis/render-experimental.ts",
     "render:wasm": "node analysis/render-wasm.ts",
     "render:builder": "node analysis/render-builder.ts",
+    "render:string": "node analysis/render-string.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"
