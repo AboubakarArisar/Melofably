@@ -153,9 +153,9 @@ input signal to the resonators.
 | Striker | One counter since the last strike, one half-sine, routed to the vessel selected at the strike. |
 | Inputs | Every control is clamped inside the DSP. |
 
-The striker, resonator and limiter code is the same as in `bar.dsp`, repeated
-rather than shared so the approved bar model was not touched. Neither
-`string.dsp` nor `bar.dsp` changed in this phase.
+The striker, resonator and limiter come from `modal.lib`, shared with the bar
+and wood models. (They were separate copies until Phase 2D; moving to the
+library left this model's output bit-identical.)
 
 Stability: every pole radius is below 1, the resonators are independent and
 there is no feedback, so the model cannot grow. A test strikes all 25 vessels

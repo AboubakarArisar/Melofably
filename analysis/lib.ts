@@ -44,6 +44,42 @@ export function makeInstrument(dsp: OfflineDsp, params: Params = {}, sampleRate 
 
 export const makeString = makeInstrument
 
+/**
+ * Per-instrument control changes applied half-way through the regression
+ * baseline, so it exercises more than the default settings.
+ */
+export const BASELINE_VARIATION: Record<string, Params> = {
+  string: { pluckPosition: 0.3, brightness: 0.7, damping: 0.5 },
+  bar: { strikePosition: 0.2, hardness: 0.9, velocity: 0.6 },
+  glass: { strikeHeight: 0.6, hardness: 0.9, velocity: 0.6 },
+  wood: { strikePosition: 0.2, hardness: 0.9, resonator: 0.8 },
+}
+
+/**
+ * The regression baseline performance: three notes at the model's defaults,
+ * the variation above, three more notes. 1.2 s of audio, fully deterministic.
+ * tests/baseline/*.wav hold the approved output (analysis/baseline.ts).
+ */
+export function playBaseline(inst: ReturnType<typeof makeInstrument>, variation: Params): Float32Array {
+  const parts: Float32Array[] = []
+  const notes = (list: number[]) => {
+    for (const note of list) {
+      inst.set({ key: note, fret: note })
+      parts.push(inst.play(0.2))
+    }
+  }
+  notes([0, 7, 12])
+  inst.set(variation)
+  notes([19, 24, 3])
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0))
+  let at = 0
+  for (const p of parts) {
+    out.set(p, at)
+    at += p.length
+  }
+  return out
+}
+
 // ---- time domain ------------------------------------------------------------
 
 export function rms(x: Float32Array, start = 0, end = x.length): number {

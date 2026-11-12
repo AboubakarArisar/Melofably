@@ -33,8 +33,14 @@ instrument selector. See [BAR_MODEL.md](BAR_MODEL.md).
 Phase 2B (approved): struck thin-walled cylindrical glass vessels by modal
 synthesis. See [GLASS_MODEL.md](GLASS_MODEL.md).
 
-Phase 2C (implemented, awaiting listening evaluation): struck wooden bars
-over tube resonators by modal synthesis. See [WOOD_MODEL.md](WOOD_MODEL.md).
+Phase 2C (approved): struck wooden bars over tube resonators by modal
+synthesis. See [WOOD_MODEL.md](WOOD_MODEL.md).
+
+Phase 2D (implemented, awaiting review): stability and architecture. Models
+precompiled, warmed up and primed before use; click-free switching; shared
+DSP library; approved-audio baselines; design for the instrument builder. See
+[STABILITY.md](STABILITY.md) and
+[BUILDER_ARCHITECTURE.md](BUILDER_ARCHITECTURE.md). No new instruments.
 
 - Modal synthesis for bars, plates, bowls, and tubes.
 - Material parameters (stiffness, density, damping) mapped to mode

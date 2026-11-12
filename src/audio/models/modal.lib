@@ -1,13 +1,26 @@
-// Shared building blocks for struck modal instruments.
+// Building blocks shared by the instrument models: bar.dsp, glass.dsp and
+// wood.dsp use all of it, string.dsp the clamp and the limiter.
 //
-// Used by wood.dsp. bar.dsp and glass.dsp carry their own identical copies of
-// these definitions, written before this library existed; they were approved
-// as they are and have been left untouched.
+// Moving the bar, glass and string models onto this library (Phase 2D) was
+// verified to leave their output bit-identical to the approved versions; see
+// tests/baseline.test.ts.
 
 ma = library("maths.lib");
 fi = library("filters.lib");
 
 clip(lo, hi) = max(lo) : min(hi);
+
+// ---- elastic striker ----------------------------------------------------------
+// A half-sine force pulse lasting `contact` seconds whose area (the impulse
+// delivered) is `impulse`, started whenever `trig` is 1: an elastic, lossless
+// contact. Silent until the first trigger.
+strikeForce(trig, contact, impulse) =
+    armed * (since < width) * sin(ma.PI * since / width) * impulse * ma.PI / (2 * width)
+with {
+    width = max(2, contact * ma.SR); // samples
+    since = (+(1) : *(1 - trig) : min(1000000)) ~ _;
+    armed = max(trig) ~ _; // 0 until the first strike
+};
 
 // ---- two-pole resonator -----------------------------------------------------
 // One vibration mode: poles at radius r = e^(-ln(1000) / (decay SR)) and angle

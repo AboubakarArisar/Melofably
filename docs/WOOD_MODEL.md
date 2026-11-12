@@ -138,9 +138,8 @@ estimates.
 Nothing is allocated on the audio thread: all 25 bars exist from the start and
 run continuously.
 
-`modal.lib` is new. It holds the resonator and soft limiter that `bar.dsp` and
-`glass.dsp` also contain as their own copies. Those two files were approved as
-they are and were not changed; only `wood.dsp` uses the library.
+`modal.lib` holds the resonator, clamp and soft limiter, shared with the bar,
+glass and string models.
 
 ## Limits of treating wood as a one-dimensional isotropic beam
 

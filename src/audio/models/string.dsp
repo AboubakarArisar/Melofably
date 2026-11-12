@@ -2,6 +2,7 @@ declare name "string";
 declare description "Plucked ideal string (single-delay-loop digital waveguide) driving a modal body";
 
 import("stdfaust.lib");
+import("modal.lib");
 
 // One string, fixed at both ends, modelled as a single delay loop (the
 // Karplus-Strong / Jaffe-Smith form of a digital waveguide), followed by a
@@ -10,7 +11,6 @@ import("stdfaust.lib");
 
 MAXN = 8192; // longest loop in samples (lowest pitch = SR / MAXN)
 
-clip(lo, hi) = max(lo) : min(hi);
 
 // ---- controls -------------------------------------------------------------
 // Physical parameters are smoothed so that dragging a slider bends the pitch
@@ -132,9 +132,6 @@ withBody = _ <: *(1 - bodyAmt), (body : *(bodyAmt)) :> _;
 // ---- output ---------------------------------------------------------------
 // Transparent below 0.8, then a smooth knee that approaches but never reaches
 // 1: no hard clipping, and no gain change at normal levels.
-knee = 0.8;
-softLimit(x) = select2(abs(x) > knee, x,
-    ma.signum(x) * (knee + (1 - knee) * ma.tanh((abs(x) - knee) / (1 - knee))));
 
 // Gain chosen so a single note at full strength peaks near 0.5 and fast
 // repeated notes stay below the knee.

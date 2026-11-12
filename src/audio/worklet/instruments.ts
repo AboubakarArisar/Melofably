@@ -34,15 +34,67 @@ export const instrumentParams: Record<InstrumentId, Record<string, InstrumentPar
   wood: paramsOf(woodMeta),
 }
 
+export const INSTRUMENT_IDS = Object.keys(MODELS) as InstrumentId[]
+
+const compiled = new Map<InstrumentId, Promise<WebAssembly.Module>>()
+
+/**
+ * Fetch and compile a model's WebAssembly, once per page. A compiled module
+ * does not belong to any AudioContext, so it is reused for every node and
+ * across stop/start. A failed load is not remembered, so it can be retried.
+ */
+export function compileInstrument(id: InstrumentId): Promise<WebAssembly.Module> {
+  let module = compiled.get(id)
+  if (!module) {
+    module = (async () => {
+      const response = await fetch(MODELS[id].wasmUrl)
+      if (!response.ok) throw new Error(`Could not load the ${id} model (HTTP ${response.status})`)
+      return WebAssembly.compileStreaming(response)
+    })()
+    module.catch(() => compiled.delete(id))
+    compiled.set(id, module)
+  }
+  return module
+}
+
+/**
+ * Get every model ready ahead of use: at page load, with no user gesture and
+ * no audible AudioContext. Each model is compiled, then run for half a second
+ * in an OfflineAudioContext with a note sounding. That exercises the compiled
+ * code off the real-time thread, so the browser's first-run work on it
+ * (optimising the WebAssembly once it runs hot) is done before it is ever
+ * asked to produce live audio. Failures are left for the first real use to
+ * report.
+ */
+export async function preloadInstruments(): Promise<void> {
+  for (const id of INSTRUMENT_IDS) {
+    try {
+      await compileInstrument(id)
+      if (typeof OfflineAudioContext === 'undefined') continue
+      const offline = new OfflineAudioContext(1, 24000, 48000)
+      const node = await createInstrumentNode(offline, id)
+      node.connect(offline.destination)
+      node.setParamValue(`/${id}/${MODELS[id].trigger}`, 1)
+      await offline.startRendering()
+      node.destroy()
+    } catch {
+      // Reported when the instrument is actually used.
+    }
+  }
+}
+
 /**
  * Instantiate a compiled model as an AudioWorkletNode. faustwasm registers
  * its processor from a Blob URL and instantiates the WebAssembly module on
  * the audio thread; all synthesis happens there.
  */
 export async function createInstrumentNode(ctx: BaseAudioContext, id: InstrumentId): Promise<FaustMonoAudioWorkletNode> {
-  const { meta, wasmUrl } = MODELS[id]
-  const module = await WebAssembly.compileStreaming(fetch(wasmUrl))
-  const node = await new FaustMonoDspGenerator().createNode(ctx, id, { module, json: JSON.stringify(meta), soundfiles: {} })
+  const module = await compileInstrument(id)
+  const node = await new FaustMonoDspGenerator().createNode(ctx, id, {
+    module,
+    json: JSON.stringify(MODELS[id].meta),
+    soundfiles: {},
+  })
   if (!node) throw new Error(`Could not create the ${id} AudioWorklet node`)
   return node
 }

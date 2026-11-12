@@ -120,6 +120,7 @@ resonators; no mode amplitudes are set directly.
 | Modes | 8 per bar: `fi.tf2(1, 0, -1, -2 r cos w, r^2)`, the same two-pole/two-zero filter as Faust's `pm.modeFilter`. `w = 2 pi f / SR`, `r = e^(-ln(1000) / (T60 SR))`. |
 | Coefficients | Recomputed every block from the sliders. `cos` and `e^-x` are evaluated as polynomials (sine Taylor series to x^13, error below 2e-10; e^-x to x^3, error below 3e-9) because 400 library calls per block dominated the CPU cost. |
 | Modes above the audio band | A mode above 0.45 x sample rate gets gain 0 and its resonator is parked at that limit. |
+| Shared code | The resonator, striker and limiter come from `modal.lib`, shared with the glass and wood models. Moving to it (Phase 2D) left this model's output bit-identical. |
 | Mallet | One counter since the last strike, one half-sine. The pulse is routed to the bar selected when the strike happened (`ba.sAndH`). |
 | Trigger | The host increments `strike`; any change strikes bar `key`. |
 | Output | Sum of bars x 0.2, then the same soft limiter as the string (linear below 0.8, tanh knee, never reaches 1). |

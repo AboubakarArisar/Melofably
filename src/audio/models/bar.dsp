@@ -2,6 +2,7 @@ declare name "bar";
 declare description "Struck free-free metal bars: modal synthesis from Euler-Bernoulli beam theory";
 
 import("stdfaust.lib");
+import("modal.lib");
 
 // A set of 25 uniform rectangular bars (two octaves, like a metallophone),
 // each a bank of damped two-pole resonators, one per bending mode, driven by
@@ -10,8 +11,6 @@ import("stdfaust.lib");
 
 NBARS = 25;  // one bar per key; each rings independently
 NMODES = 8;  // bending modes per bar
-
-clip(lo, hi) = max(lo) : min(hi);
 
 // ---- controls -------------------------------------------------------------
 // All clamped inside the DSP so no host value can produce an invalid model.
@@ -90,12 +89,8 @@ t60(i, n) = 1 / (1 / T60_MOUNT + loss * freq(i, n) / 2.2);
 // pulse area (the impulse delivered) is proportional to strike velocity, so a
 // longer contact is the same push spread out, with less high-frequency force.
 contact = 0.0012 * pow(0.15 / 1.2, hard) * pow(max(vel, 0.05), 0 - 0.2);
-width = max(2, contact * ma.SR); // samples
 trig = strike != strike';
-sinceTrig = (+(1) : *(1 - trig) : min(1000000)) ~ _;
-armed = max(trig) ~ _; // 0 until the first strike
-force = armed * (sinceTrig < width)
-      * sin(ma.PI * sinceTrig / width) * vel * ma.PI / (2 * width);
+force = strikeForce(trig, contact, vel);
 // There is one mallet: the pulse goes to the bar that was selected when it
 // struck. (A second strike within the ~1 ms contact time cuts the first short.)
 target = key : ba.sAndH(trig);
@@ -109,30 +104,15 @@ pulse(i) = force * (target == i);
 // height at every frequency.
 //
 // The 200 resonators' coefficients are recomputed every audio block. Library
-// cos/pow calls dominated the CPU cost, so both are evaluated as polynomials:
-//  - sin(x) by its Taylor series to x^13, used as cos(w) = 1 - 2 sin^2(w / 2).
-//    w / 2 never exceeds 1.42 rad, where the truncation error is below 2e-10.
-//  - e^(-x) to x^3. x is at most 0.016 here (error below 3e-9).
-sinPoly(x) = x * (1 + x2 * (0 - 1.0 / 6 + x2 * (1.0 / 120 + x2 * (0 - 1.0 / 5040
-           + x2 * (1.0 / 362880 + x2 * (0 - 1.0 / 39916800 + x2 / 6227020800))))))
-with { x2 = x * x; };
-cosPoly(w) = 1 - 2 * s * s with { s = sinPoly(w / 2); };
-expNeg(x) = 1 - x + x * x / 2 - x * x * x / 6;
-resonator(f, decay, g) = fi.tf2(1, 0, 0 - 1, 0 - 2 * r * cosPoly(w), r * r) * g
-with {
-    w = 2 * ma.PI * f / ma.SR;
-    r = expNeg(min(0.25, 6.9078 / (decay * ma.SR)));
-};
+// cos/pow calls dominated the CPU cost, so `resonator` (modal.lib) evaluates
+// both as polynomials: sin by its Taylor series to x^13 (error below 2e-10)
+// and e^(-x) to x^3 (x is at most 0.016 here; error below 3e-9).
 mode(i, n) = resonator(min(freq(i, n), 0.45 * ma.SR), t60(i, n), modeGain(i, n));
 bar(i) = pulse(i) <: par(n, NMODES, mode(i, n)) :> _;
 
 // ---- output ---------------------------------------------------------------
-// Transparent below 0.8, then a smooth knee that approaches but never reaches
-// 1 (same limiter as the string): several bars ringing together cannot clip.
-knee = 0.8;
-softLimit(x) = select2(abs(x) > knee, x,
-    ma.signum(x) * (knee + (1 - knee) * ma.tanh((abs(x) - knee) / (1 - knee))));
-
+// softLimit (modal.lib) is transparent below 0.8, then a smooth knee that
+// approaches but never reaches 1: several bars ringing together cannot clip.
 // Gain chosen so the hardest single strike (hard mallet, full velocity, on the
 // end of the longest bar) peaks near 0.5 and a typical one near 0.2, leaving
 // room for several bars to ring together below the limiter's knee.

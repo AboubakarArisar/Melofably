@@ -2,21 +2,17 @@ declare name "glass";
 declare description "Struck thin-walled cylindrical glass vessels: modal synthesis from an inextensional shell approximation";
 
 import("stdfaust.lib");
+import("modal.lib");
 
 // A set of 25 thin-walled cylindrical glass vessels (like a row of tumblers),
 // each closed and held rigid at its base and free at its rim, struck on the
 // wall. Each vessel is a bank of damped two-pole resonators, one per wall
 // vibration mode. Equations, sources, assumptions and limits are in
-// docs/GLASS_MODEL.md.
-//
-// The mallet, resonator and limiter below are the same as in bar.dsp. They are
-// repeated here rather than shared so that the approved bar model stays
-// byte-for-byte untouched.
+// docs/GLASS_MODEL.md. The striker, resonator and limiter come from modal.lib.
 
 NVESSELS = 25; // one vessel per key; each rings independently
 NMODES = 8;    // wall modes per vessel
 
-clip(lo, hi) = max(lo) : min(hi);
 
 // ---- controls -------------------------------------------------------------
 // All clamped inside the DSP so no host value can produce an invalid model.
@@ -110,12 +106,8 @@ t60(i, j) = 1 / (1 / T60_MOUNT + loss * freq(i, j) / 2.2);
 // slightly for faster strikes (Hertzian contact: time ~ velocity^(-1/5)). The
 // pulse area (the impulse delivered) is proportional to strike velocity.
 contact = 0.0012 * pow(0.15 / 1.2, hard) * pow(max(vel, 0.05), 0 - 0.2);
-width = max(2, contact * ma.SR); // samples
 trig = strike != strike';
-sinceTrig = (+(1) : *(1 - trig) : min(1000000)) ~ _;
-armed = max(trig) ~ _; // 0 until the first strike
-force = armed * (sinceTrig < width)
-      * sin(ma.PI * sinceTrig / width) * vel * ma.PI / (2 * width);
+force = strikeForce(trig, contact, vel);
 // There is one striker: the pulse goes to the vessel that was selected when
 // it struck.
 target = key : ba.sAndH(trig);
@@ -124,33 +116,15 @@ pulse(i) = force * (target == i);
 // ---- resonators -----------------------------------------------------------
 // One two-pole resonator per mode: poles at radius r = e^(-ln(1000) / (t60 SR))
 // and angle w = 2 pi f / SR, zeros at DC and Nyquist. r is below 1 for every
-// finite t60, so each mode is unconditionally stable.
-//
-// The 200 resonators' coefficients are recomputed every audio block, so cos
-// and e^-x are evaluated as polynomials rather than library calls:
-//  - sin(x) by its Taylor series to x^13, used as cos(w) = 1 - 2 sin^2(w / 2).
-//    w / 2 never exceeds 1.42 rad, where the truncation error is below 2e-10.
-//  - e^(-x) to x^3. x is at most 0.01 here (error below 1e-9).
-sinPoly(x) = x * (1 + x2 * (0 - 1.0 / 6 + x2 * (1.0 / 120 + x2 * (0 - 1.0 / 5040
-           + x2 * (1.0 / 362880 + x2 * (0 - 1.0 / 39916800 + x2 / 6227020800))))))
-with { x2 = x * x; };
-cosPoly(w) = 1 - 2 * q * q with { q = sinPoly(w / 2); };
-expNeg(x) = 1 - x + x * x / 2 - x * x * x / 6;
-resonator(f, decay, g) = fi.tf2(1, 0, 0 - 1, 0 - 2 * r * cosPoly(w), r * r) * g
-with {
-    w = 2 * ma.PI * f / ma.SR;
-    r = expNeg(min(0.25, 6.9078 / (decay * ma.SR)));
-};
+// finite t60, so each mode is unconditionally stable. `resonator` (modal.lib)
+// evaluates cos and e^-x as polynomials, so the 200 resonators' coefficients,
+// recomputed every audio block, need no library calls.
 mode(i, j) = resonator(min(freq(i, j), 0.45 * ma.SR), t60(i, j), modeGain(i, j));
 vessel(i) = pulse(i) <: par(j, NMODES, mode(i, j)) :> _;
 
 // ---- output ---------------------------------------------------------------
-// Transparent below 0.8, then a smooth knee that approaches but never reaches
-// 1 (same limiter as the other instruments).
-knee = 0.8;
-softLimit(x) = select2(abs(x) > knee, x,
-    ma.signum(x) * (knee + (1 - knee) * ma.tanh((abs(x) - knee) / (1 - knee))));
-
+// softLimit (modal.lib) is transparent below 0.8, then a smooth knee that
+// approaches but never reaches 1.
 // Gain chosen so the hardest single strike peaks near 0.5, leaving room for
 // several vessels to ring together below the limiter's knee.
 process = par(i, NVESSELS, vessel(i)) :> *(0.16) : softLimit;

@@ -9,10 +9,14 @@ Status: four models exist. The plucked string (waveguide) is described in
 [BAR_MODEL.md](BAR_MODEL.md), the struck glass vessel (modal synthesis) in
 [GLASS_MODEL.md](GLASS_MODEL.md), and the struck wooden bar (modal synthesis)
 in [WOOD_MODEL.md](WOOD_MODEL.md). `src/audio/models/modal.lib` holds the
-resonator and limiter shared by new modal models; the bar and glass models
-predate it and keep their own copies. Each model is its own Faust program and its own
-WebAssembly module; the engine hosts one at a time and swaps the worklet node
-when the instrument changes.
+resonator, elastic striker, clamp and limiter they share. Each model is its
+own Faust program and its own WebAssembly module; the engine hosts one at a
+time and swaps the worklet node when the instrument changes.
+
+Related documents: [STABILITY.md](STABILITY.md) (loading strategy, underrun
+measurements, performance, audio regression) and
+[BUILDER_ARCHITECTURE.md](BUILDER_ARCHITECTURE.md) (design, not yet built, for
+composing instruments from components).
 
 ## The four pieces
 
@@ -67,17 +71,25 @@ Two ways to get from `.dsp` to WASM, used at different phases:
 The integration library is `@grame/faustwasm` 0.20 (GRAME's official package).
 How it is used today, checked against its installed typings and sources:
 
-- **Build.** `npm run dsp` runs its `faust2wasm-ts` CLI, which compiles each
+- **Build.** `npm run dsp` (`scripts/build-dsp.mjs`) compiles every
   `src/audio/models/<name>.dsp` to
-  `src/audio/models/generated/<name>/dsp-module.wasm` and `dsp-meta.json`. The
-  folder is git-ignored and rebuilt before `dev`, `build` and `test`.
+  `src/audio/models/generated/<name>/dsp-module.wasm` and `dsp-meta.json`,
+  skipping models whose output is newer than their source and the libraries.
+  The folder is git-ignored and checked before `dev`, `build` and `test`.
 - **Browser.** `src/audio/worklet/instruments.ts` lists the models, imports
-  each one's JSON, fetches and compiles its `.wasm`, and calls
+  each one's JSON, compiles its `.wasm` once per page, and calls
   `new FaustMonoDspGenerator().createNode(ctx, name, { module, json, soundfiles })`.
   faustwasm registers its `AudioWorkletProcessor` from a Blob URL and
   instantiates the module on the audio thread, returning a
   `FaustMonoAudioWorkletNode`. Parameters are set with
   `node.setParamValue(path, value)`.
+- **Loading.** At page load every model is compiled and run briefly in an
+  `OfflineAudioContext`. At Start Audio the engine creates the selected
+  instrument's node, then creates and discards one node of each other
+  instrument, before reporting that it is running. Switching fades the output
+  for 15 ms, swaps the one live node and restores the gain. The graph is
+  `instrument node -> output gain -> analyser -> destination`. Why each step
+  exists is in [STABILITY.md](STABILITY.md).
 - **Tests.** `createOfflineProcessor(sampleRate, 128, factory)` runs the same
   `.wasm` in Node with no `AudioContext`; `render()` returns the samples.
 - **Bundle note.** The package's ESM build has a Node-only branch that imports
@@ -125,8 +137,14 @@ compiled models`. Nothing under `audio/` imports React.
   itself: measured pitch or modal frequencies, decay, spectral content,
   stability, reproducibility.
 - **Engine lifecycle** (`tests/engine.test.ts`): Web Audio objects replaced by
-  counters, to show that notes create no nodes, that switching instrument
-  swaps exactly one node, and that dispose releases everything.
+  recorders, to show that notes create no nodes, that switching swaps exactly
+  one node behind a fade, that failures leave nothing behind, and that dispose
+  releases everything.
+- **Registry and parameters** (`tests/instruments.test.ts`): every control on
+  screen exists in its compiled model; values persist per instrument; models
+  are compiled once and load failures are reported.
+- **Audio regression** (`tests/baseline.test.ts`): each model against the
+  samples it produced when approved (`tests/baseline/*.wav`).
 - **Development hook.** In development builds only, the live engine is exposed
   as `window.sonicmatter` so its analyser can be read from the console.
 - **Browser integration**: manual; there are no automated browser tests yet.

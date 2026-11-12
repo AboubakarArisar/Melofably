@@ -22,6 +22,8 @@ Documentation:
 - [Metal bar model and its assumptions](docs/BAR_MODEL.md)
 - [Glass vessel model, its sources and assumptions](docs/GLASS_MODEL.md)
 - [Wooden bar model and the limits of treating wood as a beam](docs/WOOD_MODEL.md)
+- [Stability, loading and performance](docs/STABILITY.md)
+- [Instrument builder: architecture design (not yet built)](docs/BUILDER_ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -59,8 +61,9 @@ Then open http://localhost:5173.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Start the dev server |
-| `npm run dsp` | Compile the Faust model to WebAssembly (runs automatically before dev, test and build) |
+| `npm run dsp` | Compile the Faust models that changed to WebAssembly (runs automatically before dev, test and build; `-- --force` recompiles all) |
 | `npm test` | Run the Vitest suite once |
+| `npm run baseline` | Write the approved-audio baselines in `tests/baseline/` (refuses to overwrite without `-- --update`) |
 | `npm run compare` | Render before/after string WAV files and metrics into `renders/` |
 | `npm run render:bar` | Render metal bar WAV files and metrics into `renders/metal-bar/` |
 | `npm run render:glass` | Render glass vessel WAV files and metrics into `renders/glass-vessel/` |
@@ -81,7 +84,8 @@ src/
     controls/       instrument controls
     visualization/  audio visualization
   types/            shared types
-tests/              Vitest tests
-analysis/           signal measurements, frozen Phase 1 model, compare script
+tests/              Vitest tests; tests/baseline/ holds the approved audio
+analysis/           signal measurements, frozen Phase 1 model, render scripts
+scripts/            build-dsp.mjs: compiles the Faust models
 docs/               architecture, string model, roadmap
 ```
