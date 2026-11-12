@@ -45,4 +45,21 @@ export function writeWav(rel: string, x: Float32Array) {
   writeFileSync(path(rel), new Uint8Array(WavEncoder.encode([x], { sampleRate: SR, bitDepth: 24 }) as ArrayBuffer))
 }
 
-export const concat = (parts: Float32Array[]) => Float32Array.from(parts.flatMap((a) => [...a]))
+/**
+ * How many times faster than real time this process renders the model, on one
+ * thread (the same WebAssembly the browser's audio thread runs), after
+ * `notes` notes have been started on keys/frets 0..notes-1.
+ */
+export async function realtimeFactor(model: Awaited<ReturnType<typeof compileModel>>, setup: Params, notes: number) {
+  const inst = await model(setup)
+  for (let i = 0; i < notes; i++) {
+    inst.set({ key: i, fret: i })
+    inst.play(0.01)
+  }
+  const seconds = 20
+  const t0 = performance.now()
+  inst.render(seconds)
+  return Math.round(seconds / ((performance.now() - t0) / 1000))
+}
+
+export const concat =(parts: Float32Array[]) => Float32Array.from(parts.flatMap((a) => [...a]))

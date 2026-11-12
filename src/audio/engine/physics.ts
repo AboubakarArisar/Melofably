@@ -46,6 +46,65 @@ export function barModeFrequencies(p: BarParams, key = 0): number[] {
   return BAR_MODE_K.map((k) => (k * k * h * speed) / (2 * Math.PI * length * length))
 }
 
+/** Eigenvalues b_m of a clamped-free beam: roots of cos(b) cosh(b) = -1. */
+export const CANTILEVER_B = [1.875104068712, 4.694091132974]
+
+/**
+ * The glass vessel's wall modes, in the order the DSP holds them. Mode (n, m)
+ * has radial motion ~ cos(n theta) around the circumference and m nodal
+ * circles along the height. (2, 0) is the fundamental.
+ */
+export const GLASS_MODES = [
+  { n: 2, m: 0 },
+  { n: 3, m: 0 },
+  { n: 4, m: 0 },
+  { n: 5, m: 0 },
+  { n: 6, m: 0 },
+  { n: 2, m: 1 },
+  { n: 3, m: 1 },
+  { n: 4, m: 1 },
+]
+
+export type GlassParams = {
+  diameter: number // mm
+  height: number // mm
+  thickness: number // mm (wall)
+  density: number // kg/m^3
+  youngsModulus: number // GPa
+}
+
+/**
+ * Wall-mode frequencies in Hz of a thin cylindrical vessel, rigid at the base
+ * and free at the rim, bending without stretching (French 1983; Terwagne &
+ * Bush 2011, eq. 5, with the axial term from clamped-free beam eigenvalues):
+ * f(n, m) = 1 / (12 pi) * sqrt(3 E / rho) * a / R^2
+ *           * sqrt(((n^2 - 1)^2 + (b_m R / H)^4) / (1 + 1 / n^2)).
+ * Returned in GLASS_MODES order. Vessel `key` is the same shape scaled by
+ * 2^(-key / 24) with the wall unchanged, which raises every mode by `key`
+ * semitones.
+ */
+export function glassModeFrequencies(p: GlassParams, key = 0): number[] {
+  const scale = 2 ** (-key / 24)
+  const R = (p.diameter / 2000) * scale
+  const H = (p.height / 1000) * scale
+  const base = (Math.sqrt((3 * p.youngsModulus * 1e9) / p.density) / (12 * Math.PI)) * (p.thickness / 1000 / (R * R))
+  return GLASS_MODES.map(({ n, m }) =>
+    base * Math.sqrt(((n * n - 1) ** 2 + ((CANTILEVER_B[m] * R) / H) ** 4) / (1 + 1 / (n * n))),
+  )
+}
+
+/**
+ * Shape of the vessel wall's motion along its height for axial index m, at
+ * z = zeta * H (0 = base, 1 = rim): the clamped-free beam mode
+ * Z = cosh(b z) - cos(b z) - sigma (sinh(b z) - sin(b z)),
+ * sigma = (cosh b + cos b) / (sinh b + sin b), normalised to unit mean square.
+ */
+export function cantileverShape(m: number, zeta: number): number {
+  const b = CANTILEVER_B[m]
+  const sigma = (Math.cosh(b) + Math.cos(b)) / (Math.sinh(b) + Math.sin(b))
+  return Math.cosh(b * zeta) - Math.cos(b * zeta) - sigma * (Math.sinh(b * zeta) - Math.sin(b * zeta))
+}
+
 /**
  * Shape of free-free mode n (0-based) at x = xi * L, normalised to unit mean
  * square (2 at a free end):

@@ -3,6 +3,8 @@ import type { InstrumentId, InstrumentParam } from '../../types'
 // Produced from src/audio/models/*.dsp by `npm run dsp`.
 import barMeta from '../models/generated/bar/dsp-meta.json'
 import barWasm from '../models/generated/bar/dsp-module.wasm?url'
+import glassMeta from '../models/generated/glass/dsp-meta.json'
+import glassWasm from '../models/generated/glass/dsp-module.wasm?url'
 import stringMeta from '../models/generated/string/dsp-meta.json'
 import stringWasm from '../models/generated/string/dsp-module.wasm?url'
 
@@ -14,6 +16,7 @@ import stringWasm from '../models/generated/string/dsp-module.wasm?url'
 export const MODELS = {
   string: { meta: stringMeta, wasmUrl: stringWasm, note: 'fret', trigger: 'pluck' },
   bar: { meta: barMeta, wasmUrl: barWasm, note: 'key', trigger: 'strike' },
+  glass: { meta: glassMeta, wasmUrl: glassWasm, note: 'key', trigger: 'strike' },
 }
 
 type MetaItem = Omit<InstrumentParam, 'unit'> & { meta?: { unit?: string }[] }
@@ -24,6 +27,7 @@ const paramsOf = (meta: { ui: { items: MetaItem[] }[] }): Record<string, Instrum
 export const instrumentParams: Record<InstrumentId, Record<string, InstrumentParam>> = {
   string: paramsOf(stringMeta),
   bar: paramsOf(barMeta),
+  glass: paramsOf(glassMeta),
 }
 
 /**

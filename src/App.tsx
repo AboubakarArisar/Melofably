@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AudioEngine } from './audio/engine/AudioEngine'
-import { BAR_MODE_K, barModeFrequencies, stringFundamental, type BarParams } from './audio/engine/physics'
+import {
+  BAR_MODE_K,
+  barModeFrequencies,
+  glassModeFrequencies,
+  stringFundamental,
+  type BarParams,
+  type GlassParams,
+} from './audio/engine/physics'
 import { instrumentParams } from './audio/worklet/instruments'
 import { Keyboard } from './components/controls/Keyboard'
 import { ParamSlider } from './components/controls/ParamSlider'
@@ -25,6 +32,8 @@ interface InstrumentUI {
 
 const hz = (f: number) => `${f.toFixed(2)} Hz`
 const barFrequency = (v: Values, note: number) => barModeFrequencies(v as unknown as BarParams, note)[0]
+// The first entry is the (2,0) mode, always the lowest.
+const glassFrequency = (v: Values, note: number) => glassModeFrequencies(v as unknown as GlassParams, note)[0]
 
 const INSTRUMENTS: Record<InstrumentId, InstrumentUI> = {
   string: {
@@ -78,6 +87,39 @@ const INSTRUMENTS: Record<InstrumentId, InstrumentUI> = {
           .join(' : '),
       },
     ],
+  },
+  glass: {
+    label: 'Glass Vessel',
+    noteName: 'vessel',
+    controls: [
+      { key: 'diameter', label: 'Diameter (largest vessel)' },
+      { key: 'height', label: 'Height (largest vessel)' },
+      { key: 'thickness', label: 'Wall thickness' },
+      { key: 'youngsModulus', label: "Glass stiffness (Young's modulus)" },
+      { key: 'density', label: 'Glass density' },
+      { key: 'lossFactor', label: 'Material damping (loss factor)' },
+      { key: 'strikeHeight', label: 'Strike height (0 base, 1 rim)' },
+      { key: 'hardness', label: 'Striker hardness' },
+      { key: 'velocity', label: 'Strike velocity' },
+    ],
+    frequency: glassFrequency,
+    readouts: (v, note) => {
+      const modes = glassModeFrequencies(v as unknown as GlassParams).sort((a, b) => a - b)
+      return [
+        { label: 'Largest vessel, mode (2,0)', value: hz(glassFrequency(v, 0)) },
+        {
+          label: note === null ? 'Last vessel struck' : `Last vessel struck (vessel ${note})`,
+          value: note === null ? '—' : hz(glassFrequency(v, note)),
+        },
+        {
+          label: 'Lowest mode ratios (depend on diameter/height)',
+          value: modes
+            .slice(0, 4)
+            .map((f) => (f / modes[0]).toFixed(2))
+            .join(' : '),
+        },
+      ]
+    },
   },
 }
 const IDS = Object.keys(INSTRUMENTS) as InstrumentId[]

@@ -6,7 +6,7 @@
 import { writeFileSync } from 'node:fs'
 import { barModeFrequencies, type BarParams } from '../src/audio/engine/physics.ts'
 import { decayTime, peak, rms, spectralPeaks, SR, type Params } from './lib.ts'
-import { compileModel, concat, freshDir, fsPath, path, writeWav } from './offline.ts'
+import { compileModel, concat, freshDir, fsPath, path, realtimeFactor, writeWav } from './offline.ts'
 
 const OUT = 'renders/metal-bar'
 const DEFAULT: BarParams = { length: 0.3, thickness: 10, density: 2700, youngsModulus: 70 } // aluminium
@@ -59,19 +59,7 @@ const melodyAudio = concat(phrase)
 writeWav(`${OUT}/12-melody.wav`, melodyAudio)
 
 // ---- performance ------------------------------------------------------------
-// Wall-clock cost of rendering audio in this process (single thread, the same
-// WebAssembly the browser's audio thread runs), with every bar ringing.
-async function realtimeFactor(model: Awaited<ReturnType<typeof compileModel>>, setup: Params, notesToPlay: number) {
-  const inst = await model(setup)
-  for (let i = 0; i < notesToPlay; i++) {
-    inst.set({ key: i, fret: i })
-    inst.play(0.01)
-  }
-  const seconds = 20
-  const t0 = performance.now()
-  inst.render(seconds)
-  return fix(seconds / ((performance.now() - t0) / 1000), 0)
-}
+// Wall-clock cost of rendering audio in this process, with every bar ringing.
 const string = await compileModel('src/audio/models/string.dsp', 'pluck')
 const performanceResult = {
   barAllBarsRinging_xRealtime: await realtimeFactor(bar, { lossFactor: 0.0001 }, 25),

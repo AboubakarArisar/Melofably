@@ -14,7 +14,7 @@ export interface InstrumentParam {
   unit?: string
 }
 
-export type InstrumentId = 'string' | 'bar'
+export type InstrumentId = 'string' | 'bar' | 'glass'
 
 export type EngineStatus =
   | { state: 'stopped' | 'starting' }

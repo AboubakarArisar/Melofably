@@ -27,9 +27,14 @@ range; a note plays in the browser with no glitches.
 
 ## Phase 2: Metal, glass, and wood resonators
 
-Phase 2A (implemented, awaiting review): struck free-free metal bars by modal
-synthesis, with an instrument selector. See [BAR_MODEL.md](BAR_MODEL.md).
-Glass and wood are not started.
+Phase 2A (approved): struck free-free metal bars by modal synthesis, with an
+instrument selector. See [BAR_MODEL.md](BAR_MODEL.md).
+
+Phase 2B (implemented, awaiting listening evaluation): struck thin-walled
+cylindrical glass vessels by modal synthesis. See
+[GLASS_MODEL.md](GLASS_MODEL.md).
+
+Wood is not started.
 
 - Modal synthesis for bars, plates, bowls, and tubes.
 - Material parameters (stiffness, density, damping) mapped to mode

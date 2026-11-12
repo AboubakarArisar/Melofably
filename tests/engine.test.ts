@@ -53,6 +53,7 @@ vi.mock('../src/audio/worklet/instruments', () => ({
   MODELS: {
     string: { note: 'fret', trigger: 'pluck' },
     bar: { note: 'key', trigger: 'strike' },
+    glass: { note: 'key', trigger: 'strike' },
   },
   createInstrumentNode: async () => {
     if (hold) await new Promise<void>((resolve) => pending.push(resolve))
@@ -106,6 +107,22 @@ test('switching instrument swaps the one node and readdresses parameters', async
   ])
   await engine.setInstrument('string')
   expect(made).toMatchObject({ contexts: 1, nodes: 3, destroyed: 2 })
+})
+
+test('cycling through all three instruments keeps one live node and one context', async () => {
+  const statuses: string[] = []
+  const engine = new AudioEngine((s) => statuses.push('instrument' in s ? `${s.state}:${s.instrument}` : s.state))
+  await engine.start('glass')
+  for (const id of ['string', 'bar', 'glass', 'bar', 'string', 'glass'] as const) {
+    await engine.setInstrument(id)
+    expect(made.nodes - made.destroyed, `live nodes after switching to ${id}`).toBe(1)
+    params.length = 0
+    engine.play(3)
+    // Notes go to the instrument just selected, under its own parameter names.
+    expect(params.map(([path]) => path.split('/')[1])).toEqual([id, id])
+  }
+  expect(made).toMatchObject({ contexts: 1, analysers: 1, nodes: 7, destroyed: 6 })
+  expect(statuses.at(-1)).toBe('running:glass')
 })
 
 test('a superseded instrument load is discarded', async () => {

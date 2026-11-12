@@ -4,24 +4,27 @@ Browser-based physical-modeling synthesizer and virtual instrument studio.
 Sound will be computed by Faust DSP compiled to WebAssembly and run in an
 AudioWorklet; the UI is React.
 
-**Status:** Phase 2A. Two playable instruments:
+**Status:** Phase 2B. Three playable instruments:
 
 - **String:** a plucked string synthesized by a digital waveguide whose pitch
   follows f = √(T/μ) / 2L.
 - **Metal Bar:** a set of struck free-free metal bars synthesized from their
   bending modes (Euler-Bernoulli beam theory).
+- **Glass Vessel:** a set of struck thin-walled cylindrical glass vessels
+  synthesized from their wall modes (inextensional shell approximation).
 
 Documentation:
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [String model and its approximations](docs/STRING_MODEL.md)
 - [Metal bar model and its assumptions](docs/BAR_MODEL.md)
+- [Glass vessel model, its sources and assumptions](docs/GLASS_MODEL.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
 
 1. Run `npm run dev` and open http://localhost:5173.
-2. Choose **String** or **Metal Bar**, then press **Start Audio** (browsers
+2. Choose **String**, **Metal Bar** or **Glass Vessel**, then press **Start Audio** (browsers
    only allow audio after a click). The instrument can be changed while
    audio is running.
 3. Click the keys, or use the computer keyboard: the Z row is the first
@@ -57,6 +60,7 @@ Then open http://localhost:5173.
 | `npm test` | Run the Vitest suite once |
 | `npm run compare` | Render before/after string WAV files and metrics into `renders/` |
 | `npm run render:bar` | Render metal bar WAV files and metrics into `renders/metal-bar/` |
+| `npm run render:glass` | Render glass vessel WAV files and metrics into `renders/glass-vessel/` |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run lint` | Lint with oxlint |
