@@ -3,6 +3,10 @@
 Status: **an experiment**. `src/experimental/` is not used by the application.
 The four approved instruments and their reference audio are unchanged.
 
+Phase 3A.1 ported this engine to WebAssembly, ran it in a real AudioWorklet
+and resolved the high-frequency coupling error reported below: see
+[WASM_ENGINE.md](WASM_ENGINE.md).
+
 - Engine: `src/experimental/physics/` (TypeScript, about 500 lines)
 - Faust comparison: `src/experimental/faust/coupled.dsp`
 - Tests: `tests/experimental.test.ts` (22 tests)

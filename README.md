@@ -4,7 +4,9 @@ Browser-based physical-modeling synthesizer and virtual instrument studio.
 Sound will be computed by Faust DSP compiled to WebAssembly and run in an
 AudioWorklet; the UI is React.
 
-**Status:** Phase 2C. Four playable instruments:
+**Status:** four playable instruments (Phases 1 to 2D, approved). An
+experimental physics engine (Phases 3A and 3A.1) lives beside them and is not
+used by the application.
 
 - **String:** a plucked string synthesized by a digital waveguide whose pitch
   follows f = √(T/μ) / 2L.
@@ -25,6 +27,7 @@ Documentation:
 - [Stability, loading and performance](docs/STABILITY.md)
 - [Instrument builder: architecture design (not yet built)](docs/BUILDER_ARCHITECTURE.md)
 - [Experimental physics engine: proof of concept and results](docs/EXPERIMENTAL_ENGINE.md)
+- [Experimental engine in WebAssembly: browser validation and results](docs/WASM_ENGINE.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -57,12 +60,16 @@ npm run dev
 
 Then open http://localhost:5173.
 
+The experimental engine's test page is at
+http://localhost:5173/experimental.html (development server only).
+
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Start the dev server |
 | `npm run dsp` | Compile the Faust models that changed to WebAssembly (runs automatically before dev, test and build; `-- --force` recompiles all) |
+| `npm run engine` | Compile the experimental physics engine (`assembly/engine.ts`) to WebAssembly (runs automatically before dev, test and build) |
 | `npm test` | Run the Vitest suite once |
 | `npm run baseline` | Write the approved-audio baselines in `tests/baseline/` (refuses to overwrite without `-- --update`) |
 | `npm run compare` | Render before/after string WAV files and metrics into `renders/` |
@@ -70,6 +77,8 @@ Then open http://localhost:5173.
 | `npm run render:glass` | Render glass vessel WAV files and metrics into `renders/glass-vessel/` |
 | `npm run render:wood` | Render wooden bar WAV files, a wood-versus-metal comparison and metrics into `renders/wooden-bar/` |
 | `npm run render:experimental` | Render the experimental engine's comparison WAV files and performance figures into `renders/experimental/` |
+| `npm run render:wasm` | Render the WebAssembly engine's listening WAV files into `renders/wasm-engine/` |
+| `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
 | `npm run lint` | Lint with oxlint |
@@ -85,7 +94,13 @@ src/
   components/
     controls/       instrument controls
     visualization/  audio visualization
+  experimental/     experimental physics engine (not used by the application)
+    physics/        TypeScript reference engine (Phase 3A)
+    wasm/           WebAssembly engine: JavaScript side, AudioWorklet, test systems
+    page/           code of the development-only test page
   types/            shared types
+assembly/           AssemblyScript source of the WebAssembly physics engine
+experimental.html   development-only test page for that engine
 tests/              Vitest tests; tests/baseline/ holds the approved audio
 analysis/           signal measurements, frozen Phase 1 model, render scripts
 scripts/            build-dsp.mjs: compiles the Faust models

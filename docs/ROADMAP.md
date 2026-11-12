@@ -58,6 +58,13 @@ physics engine with genuine two-way coupling and nonlinear contact, kept in
 recommendation: [EXPERIMENTAL_ENGINE.md](EXPERIMENTAL_ENGINE.md). No decision
 to adopt it has been made.
 
+Phase 3A.1 (experiment, awaiting review): the same engine ported to
+WebAssembly (AssemblyScript), verified against the TypeScript reference, run
+in a real AudioWorklet on a separate test page, extended to several coupled
+components and to edits while sounding, and benchmarked against the reference
+and the approved Faust bar. Results and recommendation:
+[WASM_ENGINE.md](WASM_ENGINE.md). Still not used by the application.
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.
