@@ -5,8 +5,9 @@ Sound will be computed by Faust DSP compiled to WebAssembly and run in an
 AudioWorklet; the UI is React.
 
 **Status:** four playable instruments (Phases 1 to 2D, approved). An
-experimental physics engine (Phases 3A and 3A.1) lives beside them and is not
-used by the application.
+experimental physics engine (Phases 3A and 3A.1) and a first instrument
+builder on top of it (Phase 3B) live beside them and are not used by the
+application.
 
 - **String:** a plucked string synthesized by a digital waveguide whose pitch
   follows f = √(T/μ) / 2L.
@@ -28,6 +29,7 @@ Documentation:
 - [Instrument builder: architecture design (not yet built)](docs/BUILDER_ARCHITECTURE.md)
 - [Experimental physics engine: proof of concept and results](docs/EXPERIMENTAL_ENGINE.md)
 - [Experimental engine in WebAssembly: browser validation and results](docs/WASM_ENGINE.md)
+- [Instrument builder: what it is, how it maps to the engine, tests, limitations](docs/BUILDER.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -60,8 +62,9 @@ npm run dev
 
 Then open http://localhost:5173.
 
-The experimental engine's test page is at
-http://localhost:5173/experimental.html (development server only).
+The instrument builder is at http://localhost:5173/builder.html and the
+experimental engine's test page at http://localhost:5173/experimental.html
+(both development server only).
 
 ## Scripts
 
@@ -94,6 +97,7 @@ src/
   components/
     controls/       instrument controls
     visualization/  audio visualization
+  builder/          experimental instrument builder: graph, translation, audio session, interface
   experimental/     experimental physics engine (not used by the application)
     physics/        TypeScript reference engine (Phase 3A)
     wasm/           WebAssembly engine: JavaScript side, AudioWorklet, test systems
@@ -101,6 +105,7 @@ src/
   types/            shared types
 assembly/           AssemblyScript source of the WebAssembly physics engine
 experimental.html   development-only test page for that engine
+builder.html        development-only instrument builder page
 tests/              Vitest tests; tests/baseline/ holds the approved audio
 analysis/           signal measurements, frozen Phase 1 model, render scripts
 scripts/            build-dsp.mjs: compiles the Faust models

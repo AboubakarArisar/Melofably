@@ -1,6 +1,9 @@
 # Instrument builder: architecture design
 
-Status: **design only**. Nothing in this document is implemented. It records
+Status: **design only, superseded.** Phase 3B built a first instrument builder
+on the WebAssembly physics engine rather than on generated Faust code as
+proposed here: see [BUILDER.md](BUILDER.md). This document is kept as the
+record of the earlier analysis. Nothing in it is implemented. It records
 how a future instrument builder, in which a user combines physical components,
 could be built on what exists, what that would and would not be physically,
 and what the present Faust/WebAssembly architecture makes hard.

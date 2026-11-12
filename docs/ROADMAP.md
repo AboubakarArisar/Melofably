@@ -65,6 +65,13 @@ components and to edits while sounding, and benchmarked against the reference
 and the approved Faust bar. Results and recommendation:
 [WASM_ENGINE.md](WASM_ENGINE.md). Still not used by the application.
 
+Phase 3B (experiment, awaiting review): a first visual instrument builder on
+that engine, as a separate development-only page. Mallets, impulse strikes,
+metal and wooden bars, springs and dampers; graph validation, translation to
+the engine, live edits where the engine allows and a rebuild otherwise; three
+editable examples. See [BUILDER.md](BUILDER.md). The plan below (generated
+Faust code) was not followed: the engine takes the design as data.
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

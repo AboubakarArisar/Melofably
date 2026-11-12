@@ -578,8 +578,9 @@ export function step(): void {
 
 /**
  * Advance `count` samples (at most 4096) into the output buffer: the shape of
- * an AudioWorklet process() call. A non-finite output is replaced by silence,
- * the state is cleared and the fault is counted.
+ * an AudioWorklet process() call. An output that is not finite, or absurdly
+ * large (1e30 m/s or more), is replaced by silence, the state is cleared and
+ * the fault is counted.
  */
 export function process(count: i32): void {
   if (count > MAX_BLOCK) count = MAX_BLOCK
@@ -599,7 +600,8 @@ export function process(count: i32): void {
       }
     }
     step()
-    if (mix - mix != 0) {
+    // Not a number, infinite, or so large that it is one in 32 bits: a fault.
+    if (!(Math.abs(mix) < 1e30)) {
       faultCount++
       silence()
       mix = 0
