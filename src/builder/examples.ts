@@ -36,8 +36,21 @@ function woodAndMetal(): Graph {
   return setConnection(joined.graph, joined.id, { type: 'springDamper', stiffness: 2e5, damping: 0.5 })
 }
 
+/** Phase 3C.3: one string on the damped box of Phase 3C.2.3, joined by its bridge. */
+function stringOnBox(): Graph {
+  const string = place(emptyGraph(), 'steelString', 330, 170)
+  const body = place(string.graph, 'dampedBox', 560, 380)
+  return connect(body.graph, string.id, body.id).graph
+}
+
 export const EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
   { id: 'single', label: 'One metal bar and a mallet', make: singleBar },
   { id: 'coupled', label: 'Two metal bars joined by a spring', make: twoBars },
   { id: 'mixed', label: 'A wooden bar joined to a metal bar', make: woodAndMetal },
 ]
+
+/**
+ * Experimental instruments that are not made of bars. Kept apart from EXAMPLES: those three are the
+ * approved bar examples, and everything that is checked for every bar example runs over that list.
+ */
+export const STRING_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [{ id: 'string', label: 'A string on a damped box body', make: stringOnBox }]

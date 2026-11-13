@@ -2,9 +2,9 @@
 // assembles on the canvas. Pure data and pure functions; no audio, no DOM.
 // How it becomes sound: translate.ts. Design: docs/BUILDER.md.
 
-export type ComponentType = 'mallet' | 'impulse' | 'metalBar' | 'woodBar'
-/** 'strike' joins an exciter to the bar it hits; the others join two bars. */
-export type ConnectionType = 'strike' | 'spring' | 'damper' | 'springDamper'
+export type ComponentType = 'mallet' | 'impulse' | 'metalBar' | 'woodBar' | 'steelString' | 'dampedBox'
+/** 'strike' joins an exciter to the bar it hits; 'bridge' stands a string on a body; the others join two bars. */
+export type ConnectionType = 'strike' | 'spring' | 'damper' | 'springDamper' | 'bridge'
 
 export interface Component {
   /** Stable for the life of the component; never reused within a graph. */
@@ -61,7 +61,8 @@ export interface Material {
 
 interface TypeSpec {
   label: string
-  kind: 'exciter' | 'resonator'
+  /** 'resonator' is a bar. 'string' and 'body' are the experimental string instrument of Phase 3C.3. */
+  kind: 'exciter' | 'resonator' | 'string' | 'body'
   description: string
   params: ParamSpec[]
   materials?: Record<string, Material>
@@ -123,6 +124,24 @@ export const TYPES: Record<ComponentType, TypeSpec> = {
       spruce: { label: 'Spruce', density: 450, youngsModulus: 10, lossFactor: 0.015 },
     },
   },
+  // Ranges keep all 100 of the string's modes below the highest playable frequency at 44.1 kHz and above.
+  steelString: {
+    label: 'String',
+    kind: 'string',
+    description: 'Experimental. A steel string, 3.6 grams a metre, stretched between a fixed end and a bridge. On its own it moves almost no air: it is heard through the body its bridge stands on.',
+    params: [
+      { key: 'tension', label: 'Tension', unit: 'N', min: 30, max: 120, step: 0.5, initial: 73.5, live: true, hint: 'Tighter is higher: pitch goes as the square root of the tension. It changes while the string rings, as turning a tuning peg does.' },
+      { key: 'length', label: 'Length', unit: 'm', min: 0.5, max: 0.8, step: 0.005, initial: 0.65, live: false, hint: 'Longer is lower.' },
+      { key: 'pluckPosition', label: 'Pluck position', unit: '', min: 0.05, max: 0.95, step: 0.01, initial: 0.8, live: true, hint: 'Where the finger plucks: 0 is the fixed end, 1 the bridge. Nearer the bridge is brighter. It applies from the next pluck.' },
+      { key: 'pluckStrength', label: 'Pluck strength', unit: 'N', min: 0.2, max: 8, step: 0.1, initial: 2, live: true, hint: 'How hard the finger pulls before it lets go. Twice the force is twice the sound pressure. It applies from the next pluck.' },
+    ],
+  },
+  dampedBox: {
+    label: 'Damped box body',
+    kind: 'body',
+    description: 'Experimental. A spruce soundboard on a closed box of air with a screened hole: the body validated in Phase 3C.2.3. Its size, bridge position and hole are fixed in this version.',
+    params: [],
+  },
 }
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
@@ -130,7 +149,11 @@ export const CONNECTION_LABELS: Record<ConnectionType, string> = {
   spring: 'Spring',
   damper: 'Damper',
   springDamper: 'Spring and damper',
+  bridge: 'Bridge',
 }
+
+/** Stiffness of a bridge, N/m: fixed, the value the string and body were validated with. */
+export const BRIDGE_STIFFNESS = 1e6
 
 /** Limits of a connection's own values. */
 export const CONNECTION_PARAMS: Record<'stiffness' | 'damping', ParamSpec> = {
@@ -143,6 +166,10 @@ export const CAPACITY = { resonators: 128, connections: 32 }
 
 export const isResonator = (c: Component) => TYPES[c.type].kind === 'resonator'
 export const isExciter = (c: Component) => TYPES[c.type].kind === 'exciter'
+export const isString = (c: Component) => TYPES[c.type].kind === 'string'
+export const isBody = (c: Component) => TYPES[c.type].kind === 'body'
+/** Part of the experimental string instrument, which cannot yet share a canvas with bars. */
+const isStringPart = (c: Component) => isString(c) || isBody(c)
 /** Solver connections a builder connection takes: a spring and damper are solved as two. */
 export const engineConnections = (c: Connection) => (c.type === 'springDamper' ? 2 : 1)
 
@@ -167,6 +194,10 @@ function incompatible(a: Component | undefined, b: Component | undefined): strin
   if (!a || !b) return 'One end of the connection does not exist.'
   if (a.id === b.id) return 'A component cannot be connected to itself.'
   if (isExciter(a) && isExciter(b)) return 'Two exciters cannot be connected: attach each one to a bar.'
+  if (isStringPart(a) || isStringPart(b)) {
+    if ((isString(a) && isBody(b)) || (isBody(a) && isString(b))) return null
+    return 'A string is joined only to a body, by its bridge. Bars, mallets and impulse strikes cannot be attached to a string or a body in this version.'
+  }
   return null
 }
 
@@ -184,6 +215,19 @@ export function cannotConnect(graph: Graph, aId: string, bId: string): string | 
   if (exciter && graph.connections.some((c) => c.type === 'strike' && c.from === exciter.id)) return `${exciter.name} already strikes a bar. Remove that connection first, or add another exciter.`
   const used = graph.connections.reduce((n, c) => n + engineConnections(c), 0)
   if (used + (exciter ? 1 : 2) > CAPACITY.connections) return `The instrument is full: the physics engine solves at most ${CAPACITY.connections} connections at once.`
+  return null
+}
+
+/**
+ * Why a component of this type cannot be added, or null if it can. The string
+ * instrument is one string on one body, and does not share a canvas with bars.
+ */
+export function cannotAdd(graph: Graph, type: ComponentType): string | null {
+  const part = (t: ComponentType) => TYPES[t].kind === 'string' || TYPES[t].kind === 'body'
+  if (part(type)) {
+    if (graph.components.some((c) => !part(c.type))) return 'A string and its body cannot share an instrument with bars yet. Clear the canvas first, or load the string example.'
+    if (graph.components.some((c) => c.type === type)) return `This version supports one ${TYPES[type].label.toLowerCase()} in an instrument.`
+  } else if (graph.components.some((c) => part(c.type))) return 'Bars, mallets and impulse strikes cannot be added to a string instrument yet.'
   return null
 }
 
@@ -205,6 +249,10 @@ export function validateGraph(graph: Graph): Issue[] {
     if (spec.materials && !(c.material! in spec.materials)) issues.push({ id: c.id, message: `${c.name}: unknown material "${String(c.material)}".` })
     if (![c.x, c.y].every(Number.isFinite)) issues.push({ id: c.id, message: `${c.name}: its position on the canvas is not a number.` })
   }
+  const parts = graph.components.filter((c) => TYPES[c.type] && isStringPart(c))
+  if (parts.filter(isString).length > 1) issues.push({ message: 'This version supports one string in an instrument.' })
+  if (parts.filter(isBody).length > 1) issues.push({ message: 'This version supports one body in an instrument.' })
+  if (parts.length && graph.components.some((c) => TYPES[c.type] && !isStringPart(c))) issues.push({ message: 'A string and its body cannot share an instrument with bars, mallets or impulse strikes yet.' })
   const strikers = new Set<string>()
   const pairs = new Set<string>()
   let used = 0
@@ -222,7 +270,11 @@ export function validateGraph(graph: Graph): Issue[] {
       issues.push({ id: link.id, message: `${who}: ${reason}` })
       continue
     }
-    if (link.type === 'strike') {
+    if (link.type === 'bridge') {
+      if (!isString(a!) || !isBody(b!)) issues.push({ id: link.id, message: `${who}: a bridge goes from a string to a body.` })
+    } else if (isStringPart(a!) || isStringPart(b!)) {
+      issues.push({ id: link.id, message: `${who}: a string and a body are joined by a bridge, not by a ${CONNECTION_LABELS[link.type].toLowerCase()}.` })
+    } else if (link.type === 'strike') {
       if (!isExciter(a!) || !isResonator(b!)) issues.push({ id: link.id, message: `${who}: a strike goes from an exciter to a bar.` })
       if (strikers.has(link.from)) issues.push({ id: link.id, message: `${who}: ${a!.name} already strikes another bar.` })
       strikers.add(link.from)
@@ -281,8 +333,11 @@ export function connect(graph: Graph, aId: string, bId: string): { graph: Graph;
   const [a, b] = [component(graph, aId)!, component(graph, bId)!]
   const id = `c${graph.nextId}`
   const strike = isExciter(a) || isExciter(b)
-  const [from, to] = isExciter(b) ? [bId, aId] : [aId, bId]
-  const added: Connection = { id, type: strike ? 'strike' : 'springDamper', from, to, stiffness: CONNECTION_PARAMS.stiffness.initial, damping: CONNECTION_PARAMS.damping.initial }
+  const bridge = isStringPart(a)
+  const [from, to] = isExciter(b) || isString(b) ? [bId, aId] : [aId, bId]
+  const added: Connection = bridge
+    ? { id, type: 'bridge', from, to, stiffness: BRIDGE_STIFFNESS, damping: 0 }
+    : { id, type: strike ? 'strike' : 'springDamper', from, to, stiffness: CONNECTION_PARAMS.stiffness.initial, damping: CONNECTION_PARAMS.damping.initial }
   return { graph: { ...graph, nextId: graph.nextId + 1, connections: [...graph.connections, added] }, id }
 }
 

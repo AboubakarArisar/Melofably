@@ -1,8 +1,8 @@
 // EXPERIMENTAL (Phase 3A.1). Development-only test page for the WebAssembly
 // physics engine in a real AudioWorklet. Plain DOM; not part of the application.
 import { createInstrumentNode } from '../../audio/worklet/instruments.ts'
-import { EXAMPLES } from '../../builder/examples.ts'
-import { instrumentCalls, translate } from '../../builder/translate.ts'
+import { EXAMPLES, STRING_EXAMPLES } from '../../builder/examples.ts'
+import { instrumentCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -667,6 +667,29 @@ async function stringBench() {
   return { userAgent: navigator.userAgent, results }
 }
 
+// ---- The builder's string instrument, rendered here for comparison with Node (Phase 3C.3) ----
+
+/**
+ * The builder's string example, translated as the builder translates it and plucked once, rendered
+ * offline through this browser's AudioWorklet. Returns a few numbers that analysis/render-string-body.ts
+ * computes the same way in Node: if the two agree, the browser plays what was tested.
+ */
+async function integrated() {
+  const graph = STRING_EXAMPLES[0].make()
+  const translation = translate(graph, 48000)
+  if (!translation.ok) throw new Error('the string example does not translate')
+  const ctx = new OfflineAudioContext(1, Math.round(2.2 * 48000), 48000)
+  const physics = await createPhysicsNode(ctx, [...translation.built.calls, ...instrumentCalls(graph, translation.built)])
+  physics.node.connect(ctx.destination)
+  const data = (await ctx.startRendering()).getChannelData(0)
+  let [peak, sum] = [0, 0]
+  for (const v of data) {
+    peak = Math.max(peak, Math.abs(v))
+    sum += v * v
+  }
+  return { fullScalePa: PRESSURE_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -697,4 +720,4 @@ applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, livePeak, counts } })

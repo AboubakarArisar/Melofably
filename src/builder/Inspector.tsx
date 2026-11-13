@@ -2,8 +2,8 @@
 // properties of the selected component or connection, in plain words.
 import { useState, type ReactNode } from 'react'
 import type { Selection } from './Canvas.tsx'
-import { cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isResonator, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
-import { describeBar } from './translate.ts'
+import { BRIDGE_STIFFNESS, cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isBody, isResonator, isString, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
+import { describeBar, describeBody, describeString } from './translate.ts'
 
 interface Props {
   graph: Graph
@@ -105,6 +105,7 @@ export function Inspector(props: Props) {
         <li>Double-click a bar or an exciter to strike it.</li>
         <li>A mallet or impulse strike must be connected to the bar it hits.</li>
         <li>Two bars are joined by a spring, a damper, or both.</li>
+        <li>A string is stood on a body by its bridge. Double-click either to pluck the string.</li>
         <li>
           <span className="text-amber-300">↻</span> marks properties that rebuild the instrument: its sound stops and starts again. The others change while it rings.
         </li>
@@ -151,9 +152,11 @@ function ComponentPanel({ graph, item, sampleRate, running, onParam, onMaterial,
           <dd className="text-neutral-100">{`${facts.overtones} of 8`}</dd>
         </dl>
       )}
+      {isString(item) && Object.values(item.params).every(Number.isFinite) && <StringFacts item={item} sampleRate={sampleRate} />}
+      {isBody(item) && <BodyFacts />}
       <div className="flex flex-wrap gap-2">
         <button className={button} disabled={!running} onClick={() => onStrike(item.id)} title={running ? undefined : 'Start audio first'}>
-          {isResonator(item) ? 'Strike this bar' : 'Strike now'}
+          {isString(item) || isBody(item) ? 'Pluck the string' : isResonator(item) ? 'Strike this bar' : 'Strike now'}
         </button>
         <button className={button} onClick={onRemove}>
           Remove
@@ -177,9 +180,69 @@ function ComponentPanel({ graph, item, sampleRate, running, onParam, onMaterial,
   )
 }
 
+const facts = 'mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded bg-neutral-950 p-2 text-sm'
+const Fact = ({ name, children }: { name: string; children: ReactNode }) => (
+  <>
+    <dt className="text-neutral-400">{name}</dt>
+    <dd className="text-neutral-100">{children}</dd>
+  </>
+)
+
+function StringFacts({ item, sampleRate }: { item: Component; sampleRate: number }) {
+  const s = describeString(item, sampleRate)
+  return (
+    <>
+      <dl className={facts}>
+        <Fact name="Pitch">{`${format(s.pitch)} Hz (${s.note} ${s.centsFromNote >= 0 ? '+' : '−'}${Math.abs(s.centsFromNote).toFixed(0)} cents)`}</Fact>
+        <Fact name="Weight">{`${format(s.massGrams)} g (3.6 g/m)`}</Fact>
+        <Fact name="Wave impedance">{`${format(s.impedance)} kg/s`}</Fact>
+        <Fact name="Overtones used">{`${s.modes}, up to ${format(s.highestMode / 1000)} kHz`}</Fact>
+        <Fact name="Lowest overtone rings for">{s.ringSeconds ? `${format(s.ringSeconds)} s` : 'not playable'}</Fact>
+      </dl>
+      <p className="mb-3 text-xs text-neutral-400">
+        The pitch is that of the string between two fixed ends. On the body it is within a few cents of this. A new pluck adds to whatever the string is already doing; it does not stop it first.
+      </p>
+    </>
+  )
+}
+
+function BodyFacts() {
+  const b = describeBody()
+  return (
+    <>
+      <dl className={facts}>
+        <Fact name="Soundboard">{`spruce, ${b.plate.length} × ${b.plate.width} m, ${1000 * b.plate.thickness} mm`}</Fact>
+        <Fact name="Soundboard weight">{`${format(b.plateGrams)} g`}</Fact>
+        <Fact name="Air inside">{`${format(b.volumeLitres)} litres`}</Fact>
+        <Fact name="Sound hole">{`radius ${1000 * b.holeRadius} mm, screen ${b.holeScreen} Pa s/m`}</Fact>
+        <Fact name="Bridge stands at">{`${b.bridgeAt[0]} along, ${b.bridgeAt[1].toFixed(3)} across`}</Fact>
+        <Fact name="Heard from">1 m in front, on its axis</Fact>
+      </dl>
+      <p className="mb-3 text-xs text-neutral-400">
+        Nothing here can be changed in this version: the body is the one that was measured. What you hear is the sound pressure it radiates, from the soundboard and from the hole together, not the string itself.
+      </p>
+    </>
+  )
+}
+
 function ConnectionPanel({ graph, link, onConnection, onParam, onRemove }: Props & { link: Connection }) {
   const [from, to] = [graph.components.find((c) => c.id === link.from), graph.components.find((c) => c.id === link.to)]
   if (!from || !to) return null
+  if (link.type === 'bridge')
+    return (
+      <Panel title={`${from.name} stands on ${to.name}`}>
+        <p className="mb-3 text-sm text-neutral-400">
+          The bridge: the string's end pushes and pulls the soundboard through it, and the soundboard pushes back. This is the only way the string's motion reaches the body. Remove it and the string still moves when plucked, but nothing is heard.
+        </p>
+        <dl className={facts}>
+          <Fact name="Stiffness">{`${BRIDGE_STIFFNESS.toLocaleString('en')} N/m (fixed)`}</Fact>
+          <Fact name="Kind">a spring; no damper</Fact>
+        </dl>
+        <button className={button} onClick={onRemove}>
+          Remove connection
+        </button>
+      </Panel>
+    )
   const strike = link.type === 'strike'
   const point = (bar: Component, key: 'strikePosition' | 'connectionPosition') => {
     const spec = TYPES[bar.type].params.find((p) => p.key === key)!

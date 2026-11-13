@@ -413,3 +413,8 @@ iterations. How they sound is for listening to decide.
   browser stress run. The clock available cannot say by how much, or
   whether the cause was the engine or the machine.
 - Mouse and keyboard were tested; touch was not.
+
+## 11. The string-and-body instrument (Phase 3C.3)
+
+The builder can also hold one experimental instrument that is not made of bars: a string standing on a damped box body by a bridge. It has its own parts, its own example group and its own output (sound pressure, not bar velocity), and cannot yet share a canvas with bars. Everything in sections 1 to 10 about bars is unchanged, and the three bar examples are the same three. See [STRING_INSTRUMENT.md](STRING_INSTRUMENT.md).
+

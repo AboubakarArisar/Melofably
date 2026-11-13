@@ -4,9 +4,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { BrowserBackend, type Meter } from './audio.ts'
 import { Canvas, type Selection } from './Canvas.tsx'
-import { EXAMPLES } from './examples.ts'
+import { EXAMPLES, STRING_EXAMPLES } from './examples.ts'
 import {
   addComponent,
+  cannotAdd,
   cannotConnect,
   commit,
   connect,
@@ -147,18 +148,22 @@ export default function Builder() {
   const play = () => {
     if (!session.play()) return setNotice(state.running ? 'There is nothing to play yet: add a bar.' : 'Start audio first.')
     const struckBars = targets(graph.components)
-    flash(struckBars.length ? struckBars : graph.components.filter((c) => TYPES[c.type].kind === 'resonator').map((c) => c.id))
+    flash(struckBars.length ? struckBars : graph.components.filter((c) => TYPES[c.type].kind === 'resonator' || TYPES[c.type].kind === 'string').map((c) => c.id))
   }
   const strike = (id: string) => {
     const item = graph.components.find((c) => c.id === id)
     if (!item) return
-    const bar = TYPES[item.type].kind === 'resonator'
+    const bar = TYPES[item.type].kind !== 'exciter'
     const played = bar ? session.strikeBar(id) : session.strikeExciter(id)
-    if (played) flash(bar ? [id] : targets([item]))
+    // Plucking shows on the string, whether the string or its body was asked.
+    const strings = graph.components.filter((c) => TYPES[c.type].kind === 'string').map((c) => c.id)
+    if (played) flash(TYPES[item.type].kind === 'body' ? strings : bar ? [id] : targets([item]))
     else setNotice(!state.running ? 'Start audio first.' : state.issues.length ? 'Fix the problems listed below first.' : `${item.name} is not attached to a bar, so there is nothing to strike. Drag from its dot to a bar.`)
   }
 
   const add = (type: ComponentType) => {
+    const reason = cannotAdd(graph, type)
+    if (reason) return setNotice(reason)
     const spot = freeSpot(graph, TYPES[type].kind === 'exciter')
     const added = addComponent(graph, type, spot.x, spot.y)
     edit(added.graph)
@@ -215,7 +220,8 @@ export default function Builder() {
     Object.assign(window, { sonicmatterBuilder: { session, backend, graph: () => latest.current, load } })
   })
 
-  const load01 = meter ? Math.min(1, Math.max(0, (20 * Math.log10(Math.max(meter.peak, 1e-4) / 4) + 72) / 72)) : 0
+  const load01 = meter ? Math.min(1, Math.max(0, (20 * Math.log10(Math.max(meter.peakOfFullScale, 2.5e-5)) + 72) / 72)) : 0
+  const pressure = meter?.unit === 'Pa'
   const late = meter?.engine.slowBlocks ?? 0
   const cpu = meter && meter.engine.blocks ? (100 * meter.engine.busyMs) / ((meter.engine.blocks * 128 * 1000) / meter.sampleRate) : 0
 
@@ -228,13 +234,20 @@ export default function Builder() {
           <label htmlFor="example" className="sr-only">
             Load an example
           </label>
-          <select id="example" value="" onChange={(e) => e.target.value && load(EXAMPLES.find((x) => x.id === e.target.value)!.make())} className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm">
+          <select id="example" value="" onChange={(e) => e.target.value && load([...EXAMPLES, ...STRING_EXAMPLES].find((x) => x.id === e.target.value)!.make())} className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm">
             <option value="">Load an example…</option>
             {EXAMPLES.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}
               </option>
             ))}
+            <optgroup label="Experimental: string and body">
+              {STRING_EXAMPLES.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <button className={button} onClick={() => load(emptyGraph())} disabled={graph.components.length === 0}>
             Clear
@@ -265,7 +278,7 @@ export default function Builder() {
           Volume
           <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-28 accent-sky-400" />
         </label>
-        <div className="flex items-center gap-2 text-sm text-neutral-300" title="How fast the bars are moving where they are struck">
+        <div className="flex items-center gap-2 text-sm text-neutral-300" title={pressure ? 'Sound pressure a metre in front of the body, before the volume control' : 'How fast the bars are moving where they are struck'}>
           Level
           <div className="h-2 w-32 overflow-hidden rounded bg-neutral-800" role="meter" aria-label="Output level" aria-valuemin={0} aria-valuemax={1} aria-valuenow={Number(load01.toFixed(2))}>
             <div className={`h-full ${meter?.overloaded ? 'bg-red-400' : meter && meter.limiting > 0.5 ? 'bg-amber-300' : 'bg-emerald-400'}`} style={{ width: `${100 * load01}%` }} />
@@ -274,7 +287,7 @@ export default function Builder() {
         {/* Always its own line of fixed height, so that the page does not jump when the text changes. */}
         <output className="min-h-10 basis-full text-sm text-neutral-400">
           {state.running && meter
-            ? `Audio ${meter.state} at ${meter.sampleRate} Hz · engine load ${cpu.toFixed(1)} % of one core · ${late === 0 ? 'engine on time' : `engine late ${late} time${late === 1 ? '' : 's'}`} · output device dropouts: ${meter.underruns === null ? 'not reported by this browser' : dropoutRate < 0.5 ? 'none now' : `about ${Math.round(dropoutRate)} a second`} · rebuilt ${Math.max(0, state.rebuilds - 1)} times`
+            ? `Audio ${meter.state} at ${meter.sampleRate} Hz · engine load ${cpu.toFixed(1)} % of one core · ${late === 0 ? 'engine on time' : `engine late ${late} time${late === 1 ? '' : 's'}`} · output device dropouts: ${meter.underruns === null ? 'not reported by this browser' : dropoutRate < 0.5 ? 'none now' : `about ${Math.round(dropoutRate)} a second`} · rebuilt ${Math.max(0, state.rebuilds - 1)} times${pressure ? ` · sound pressure at 1 m: ${meter.peak < 2e-5 ? 'silent' : `${meter.peak.toPrecision(2)} Pa peak (${(20 * Math.log10(meter.peak / Math.SQRT2 / 2e-5)).toFixed(0)} dB SPL)`}` : ''}`
             : state.running
               ? 'Audio starting…'
               : 'Audio is off'}
@@ -284,21 +297,31 @@ export default function Builder() {
       <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)_21rem]">
         <nav aria-label="Components to add" className="rounded-lg border border-neutral-800 bg-neutral-900 p-3 lg:self-start">
           <h2 className="mb-2 text-base font-semibold">Add</h2>
-          {(['exciter', 'resonator'] as const).map((kind) => (
-            <div key={kind} className="mb-3">
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">{kind === 'exciter' ? 'Things that strike' : 'Things that ring'}</h3>
+          {(
+            [
+              ['Things that strike', ['exciter']],
+              ['Things that ring', ['resonator']],
+              ['String instrument (experimental)', ['string', 'body']],
+            ] as const
+          ).map(([title, kinds]) => (
+            <div key={title} className="mb-3">
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">{title}</h3>
               <div className="flex flex-wrap gap-2 lg:flex-col">
                 {(Object.keys(TYPES) as ComponentType[])
-                  .filter((type) => TYPES[type].kind === kind)
-                  .map((type) => (
-                    <button key={type} className={`${button} text-left`} onClick={() => add(type)} title={TYPES[type].description}>
-                      {TYPES[type].label}
-                    </button>
-                  ))}
+                  .filter((type) => (kinds as readonly string[]).includes(TYPES[type].kind))
+                  .map((type) => {
+                    // What cannot be added still explains why when pressed, rather than doing nothing.
+                    const reason = cannotAdd(graph, type)
+                    return (
+                      <button key={type} className={`${button} text-left ${reason ? 'opacity-45' : ''}`} onClick={() => add(type)} aria-disabled={reason !== null} title={reason ?? TYPES[type].description}>
+                        {TYPES[type].label}
+                      </button>
+                    )
+                  })}
               </div>
             </div>
           ))}
-          <p className="text-xs text-neutral-400">Springs and dampers are made by connecting two bars: drag from one bar's dot to the other.</p>
+          <p className="text-xs text-neutral-400">Springs and dampers are made by connecting two bars: drag from one bar's dot to the other. A string is stood on its body the same way. One string and one body make an instrument; they cannot be mixed with bars yet.</p>
         </nav>
 
         <main className="min-w-0">
@@ -329,7 +352,7 @@ export default function Builder() {
             )}
             {meter?.overloaded && (
               <p role="alert" className="rounded border border-red-400 bg-red-950 p-2 text-red-200">
-                The instrument is far too loud: its output is being cut off, which distorts it. Use a lighter, softer or slower mallet.
+                {pressure ? 'The instrument is far too loud: its output is being cut off, which distorts it. Pluck more gently.' : 'The instrument is far too loud: its output is being cut off, which distorts it. Use a lighter, softer or slower mallet.'}
               </p>
             )}
             {meter && dropoutRate >= 1 && late === 0 && (

@@ -25,6 +25,7 @@
     "render:soundboard-refined": "node analysis/render-soundboard-refined.ts",
     "render:soundboard-enclosed": "node analysis/render-soundboard-enclosed.ts",
     "render:soundboard-damped": "node analysis/render-soundboard-damped.ts",
+    "render:string-body": "node analysis/render-string-body.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

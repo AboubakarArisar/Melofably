@@ -32,6 +32,8 @@ Documentation:
 - [Instrument builder: what it is, how it maps to the engine, tests, limitations](docs/BUILDER.md)
 - [Physically coupled string: prototype, measurements and recommendation](docs/STRING_PROTOTYPE.md)
 - [Physical soundboard: plate model, radiation, measurements and recommendation](docs/SOUNDBOARD.md)
+- [The string-and-body instrument in the builder: architecture, controls, verification, how to try it](docs/STRING_INSTRUMENT.md)
+- [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Playing it
@@ -75,7 +77,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run dev` | Start the dev server |
 | `npm run dsp` | Compile the Faust models that changed to WebAssembly (runs automatically before dev, test and build; `-- --force` recompiles all) |
 | `npm run engine` | Compile the experimental physics engine (`assembly/engine.ts`) to WebAssembly (runs automatically before dev, test and build) |
-| `npm test` | Run the Vitest suite once |
+| `npm test` | Run the Vitest suite once (three files at a time; see [docs/TESTING.md](docs/TESTING.md)) |
 | `npm run baseline` | Write the approved-audio baselines in `tests/baseline/` (refuses to overwrite without `-- --update`) |
 | `npm run compare` | Render before/after string WAV files and metrics into `renders/` |
 | `npm run render:bar` | Render metal bar WAV files and metrics into `renders/metal-bar/` |
@@ -89,6 +91,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:soundboard-refined` | Render the before-and-after listening files of the refined soundboard into `renders/soundboard-refined/` |
 | `npm run render:soundboard-enclosed` | Render the open-plate against enclosed-box listening files into `renders/soundboard-enclosed/` |
 | `npm run render:soundboard-damped` | Render the four-way listening files (open plate, box, damped box, approved string) into `renders/soundboard-damped/` |
+| `npm run render:string-body` | Render the builder's string-and-body instrument and compare it with the approved prototype, into `renders/string-body/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

@@ -48,14 +48,23 @@ export const ZERO_CROSSING = 2
 /** Largest block process() will fill. */
 export const MAX_BLOCK = 4096
 
-/** One call of an engine function, as data: what is sent to the AudioWorklet. */
-export type Call = [name: Exclude<keyof Engine, 'memory'>, ...args: number[]]
+/**
+ * Calls answered by the AudioWorklet processor itself, not by the engine (processor.js): a plucking
+ * force over many samples, and the conversion of the engine's output to sound pressure.
+ */
+export type HostCall = 'pluck' | 'radiate'
+
+/** One call of an engine function (or of the processor), as data: what is sent to the AudioWorklet. */
+export type Call = [name: Exclude<keyof Engine, 'memory'> | HostCall, ...args: number[]]
 
 export const instantiate = (bytes: BufferSource): Engine =>
   new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports as unknown as Engine
 
 export function run(engine: Engine, calls: Call[]): void {
-  for (const [name, ...args] of calls) (engine[name] as (...a: number[]) => unknown)(...args)
+  for (const [name, ...args] of calls) {
+    if (name === 'pluck' || name === 'radiate') throw new Error(`"${name}" is answered by the audio processor: run these calls through it (analysis/worklet.ts in Node)`)
+    ;(engine[name] as (...a: number[]) => unknown)(...args)
+  }
 }
 
 /** The engine's output buffer. Valid for the life of the instance: its memory never grows after start-up. */

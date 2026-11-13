@@ -1,6 +1,6 @@
 // EXPERIMENTAL (Phase 3B). Where things are drawn on the builder's canvas.
 // Pure geometry, shared by drawing and by pointer hit-testing.
-import { isResonator, type Component, type Connection, type Graph } from './graph.ts'
+import { isBody, isResonator, isString, type Component, type Connection, type Graph } from './graph.ts'
 
 export interface Point {
   x: number
@@ -16,17 +16,36 @@ const clamp = (v: number, low: number, high: number) => (Number.isFinite(v) ? Ma
 /** Drawn size of a bar: longer and thicker bars are drawn longer and thicker (not to scale). */
 export const barSize = (bar: Component) => ({ w: clamp(70 + 300 * bar.params.length, 80, 520), h: clamp(12 + 0.9 * bar.params.thickness, 16, 48) })
 
-/** The dot connections are dragged from: on a bar, where springs attach; on an exciter, its tip. */
+/** Where on the body's top edge the bridge stands, as a fraction of its drawn width (the real plate's 0.08). */
+const BRIDGE_ON_BODY = 0.08
+
+/**
+ * Drawn size of anything drawn as a rectangle: a bar, a string (a thin line
+ * whose length follows its length) or a body. null for exciters, which are circles.
+ */
+export function rectSize(c: Component): { w: number; h: number } | null {
+  if (isResonator(c)) return barSize(c)
+  if (isString(c)) return { w: clamp(70 + 300 * c.params.length, 80, 520), h: 10 }
+  if (isBody(c)) return { w: 300, h: 130 }
+  return null
+}
+
+/**
+ * The dot connections are dragged from: on a bar, where springs attach; on an
+ * exciter, its tip; on a string, its bridge end; on a body, where the bridge stands.
+ */
 export function handle(c: Component): Point {
+  if (isString(c)) return { x: c.x + rectSize(c)!.w / 2, y: c.y + 5 }
+  if (isBody(c)) return { x: c.x - 150 + BRIDGE_ON_BODY * 300, y: c.y - 65 }
   if (!isResonator(c)) return { x: c.x, y: c.y + EXCITER_RADIUS }
   const { w, h } = barSize(c)
   return { x: c.x - w / 2 + clamp(c.params.connectionPosition, 0, 1) * w, y: c.y + h / 2 }
 }
 
-/** Where a bar is struck. */
+/** Where a bar is struck, or a string plucked. */
 export function strikePoint(bar: Component): Point {
-  const { w, h } = barSize(bar)
-  return { x: bar.x - w / 2 + clamp(bar.params.strikePosition, 0, 1) * w, y: bar.y - h / 2 }
+  const { w, h } = rectSize(bar)!
+  return { x: bar.x - w / 2 + clamp(isString(bar) ? bar.params.pluckPosition : bar.params.strikePosition, 0, 1) * w, y: bar.y - h / 2 }
 }
 
 /** The two ends of a connection as drawn. */
@@ -39,8 +58,9 @@ export function ends(graph: Graph, link: Connection): [Point, Point] | null {
 /** The component under a point (topmost first), with a little margin so that a drop near it counts. */
 export function componentAt(graph: Graph, p: Point, margin = 14): string | null {
   for (const c of [...graph.components].reverse()) {
-    if (isResonator(c)) {
-      const { w, h } = barSize(c)
+    const size = rectSize(c)
+    if (size) {
+      const { w, h } = size
       if (Math.abs(p.x - c.x) <= w / 2 + margin && Math.abs(p.y - c.y) <= h / 2 + margin) return c.id
     } else if (Math.hypot(p.x - c.x, p.y - c.y) <= EXCITER_RADIUS + margin) return c.id
   }
@@ -74,7 +94,7 @@ export const onHandle = (c: Component, p: Point): boolean => Math.hypot(p.x - ha
 
 /** The rectangle a component occupies as drawn, with its name above it. */
 function box(c: Component) {
-  const [w, h] = isResonator(c) ? [barSize(c).w, barSize(c).h] : [2 * EXCITER_RADIUS, 2 * EXCITER_RADIUS]
+  const { w, h } = rectSize(c) ?? { w: 2 * EXCITER_RADIUS, h: 2 * EXCITER_RADIUS }
   return { left: c.x - w / 2 - 12, right: c.x + w / 2 + 12, top: c.y - h / 2 - 30, bottom: c.y + h / 2 + 18 }
 }
 

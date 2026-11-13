@@ -2,8 +2,8 @@
 // their body, and connected by dragging from a component's dot to another
 // component. Everything drawn here is read from the graph.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { cannotConnect, CONNECTION_LABELS, isExciter, isResonator, TYPES, type Component, type ConnectionType, type Graph } from './graph.ts'
-import { barSize, CANVAS, componentAt, ends, EXCITER_RADIUS, handle, HANDLE_REACH, onHandle, strikePoint, zigzag, type Point } from './shapes.ts'
+import { cannotConnect, CONNECTION_LABELS, isBody, isExciter, isString, TYPES, type Component, type ConnectionType, type Graph } from './graph.ts'
+import { CANVAS, componentAt, ends, EXCITER_RADIUS, handle, HANDLE_REACH, onHandle, rectSize, strikePoint, zigzag, type Point } from './shapes.ts'
 
 export type Selection = { kind: 'component' | 'connection'; id: string } | null
 
@@ -23,13 +23,13 @@ interface Props {
 
 type Drag = { kind: 'move'; id: string; dx: number; dy: number } | { kind: 'link'; from: string; at: Point } | null
 
-const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9' }
+const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9', steelString: '#e6e9ee', dampedBox: '#b98d58' }
 /** Excitation is drawn in amber, physical links between bars in teal: two different things, two different colours. */
 const STRIKE_COLOR = '#f0b44c'
 const LINK_COLOR = '#6fd6c9'
 const SELECTED = '#6cb2ff'
 const PROBLEM = '#ff6b6b'
-const SHORT: Record<ConnectionType, string> = { strike: 'strikes', spring: 'spring', damper: 'damper', springDamper: 'spring + damper' }
+const SHORT: Record<ConnectionType, string> = { strike: 'strikes', spring: 'spring', damper: 'damper', springDamper: 'spring + damper', bridge: 'bridge' }
 
 /** What dragging a connection from `from` onto `to` would do, in words. */
 function preview(graph: Graph, from: string, to: string | null): { text: string; ok: boolean } {
@@ -39,6 +39,7 @@ function preview(graph: Graph, from: string, to: string | null): { text: string;
   const [a, b] = [graph.components.find((c) => c.id === from)!, graph.components.find((c) => c.id === to)!]
   const exciter = isExciter(a) ? a : isExciter(b) ? b : null
   const bar = exciter === a ? b : a
+  if (isString(a) || isString(b)) return { text: `Stand ${isString(a) ? a.name : b.name} on ${isString(a) ? b.name : a.name} by its bridge`, ok: true }
   return { text: exciter ? `${exciter.name} will strike ${bar.name}` : `Join ${a.name} and ${b.name} with a spring and damper`, ok: true }
 }
 
@@ -165,6 +166,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="24" />
                 {strike && <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={on ? 3.5 : 2.5} strokeDasharray="7 6" markerEnd={`url(#arrow-${color.slice(1)})`} />}
                 {(link.type === 'spring' || link.type === 'springDamper') && <polyline points={zigzag(a, b)} fill="none" stroke={color} strokeWidth={on ? 3.5 : 2.5} strokeLinejoin="round" />}
+                {link.type === 'bridge' && <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={on ? 6 : 4.5} strokeLinecap="round" />}
                 {link.type === 'damper' && <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={on ? 7 : 6} strokeDasharray="2 6" />}
                 {link.type === 'springDamper' && <line x1={a.x + 10} y1={a.y} x2={b.x + 10} y2={b.y} stroke={color} strokeWidth="5" strokeDasharray="2 6" />}
                 {/* What kind of connection it is, in a word. */}
@@ -183,8 +185,8 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
             const dim = linkingFrom !== null && linkingFrom !== c.id && !offered
             const stroke = flagged.has(c.id) ? PROBLEM : on ? SELECTED : offered ? '#5fd38d' : '#0b0d10'
             const strokeWidth = on || offered || flagged.has(c.id) ? 3 : 1.5
-            const size = isResonator(c) ? barSize(c) : null
-            const hit = size ? strikePoint(c) : null
+            const size = rectSize(c)
+            const hit = size && !isBody(c) ? strikePoint(c) : null
             return (
               <g
                 key={c.id}
@@ -198,12 +200,14 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 onKeyDown={(e) => keys(e, c)}
                 onPointerDown={(e) => press(e, c)}
               >
-                <title>{`${TYPES[c.type].description} Double-click to strike.`}</title>
+                <title>{`${TYPES[c.type].description} Double-click to ${isString(c) || isBody(c) ? 'pluck the string' : 'strike'}.`}</title>
                 {size ? (
                   <>
                     <rect className="body" x={c.x - size.w / 2} y={c.y - size.h / 2} width={size.w} height={size.h} rx="5" fill={FILL[c.type]} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={offered ? '6 4' : undefined} />
-                    {/* Where it is struck. */}
-                    <path d={`M${hit!.x - 7} ${hit!.y - 10}h14l-7 10z`} fill={STRIKE_COLOR} />
+                    {/* The body's sound hole, with its screen. */}
+                    {isBody(c) && <circle cx={c.x + 40} cy={c.y} r="34" fill="#3a2c1c" stroke="#0b0d10" strokeWidth="1.5" strokeDasharray="3 3" pointerEvents="none" />}
+                    {/* Where it is struck or plucked. */}
+                    {hit && <path d={`M${hit.x - 7} ${hit.y - 10}h14l-7 10z`} fill={STRIKE_COLOR} />}
                   </>
                 ) : (
                   <>
