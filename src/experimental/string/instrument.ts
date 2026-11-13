@@ -32,7 +32,7 @@ export interface Instrument {
    * Enclosed air behind the body (airCavity.ts): a spring from the output port to a plug of air, whose
    * own flow is added to the output. Needs `output`. Absent: none, and the calls are as before.
    */
-  air?: { stiffness: number; damping: number; plug: Mode }
+  air?: { stiffness: number; damping: number; plug: Mode; resistance?: number }
 }
 
 /** Stiffness of the joint between a bridge mass and the body, N/m: rigid for audio purposes. */
@@ -71,7 +71,10 @@ export function buildInstrument(inst: Instrument, sampleRate: number): BuiltInst
   if (inst.output) design.output([body, inst.output.port], inst.output.gain)
   if (inst.air && inst.output) {
     // The plug's port moves by -(hole area / plate area) times the plug: see airCavity().
-    const plug = design.modal([inst.air.plug])
+    // A screen over the hole: a damper from the plug itself (a second port, shape 1) to something that does not move.
+    const screened = (inst.air.resistance ?? 0) > 0
+    const plug = design.modal([screened ? { ...inst.air.plug, shape: [inst.air.plug.shape[0], 1] } : inst.air.plug])
+    if (screened) design.calls.push(['addSpring', plug, 1, design.mass(1e12), 0, 0, inst.air.resistance!, 0, 0])
     design.calls.push(['addSpring', body, inst.output.port, plug, 0, inst.air.stiffness, inst.air.damping, 0, 0])
     design.output([plug, 0], -inst.output.gain)
   }

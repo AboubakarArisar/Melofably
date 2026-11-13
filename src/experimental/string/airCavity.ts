@@ -16,9 +16,14 @@ export interface Cavity {
   /**
    * Quality factor of the air plug's motion at the box's own resonance: its
    * losses to friction at the hole's edge and to the sound it radiates.
-   * An estimate, not derived. Default 15.
+   * An estimate, not derived. Default 15. Not used when there is a screen over the hole.
    */
   quality?: number
+  /**
+   * A screen over the hole (cloth, mesh): its flow resistance, Pa s/m, the pressure across it per unit of
+   * air speed through it. Open hole: 0. Light cloth is of the order of 10 to 100, felt several hundred.
+   */
+  holeScreen?: number
   /** Leave out the energy the box sends into the air as sound (for checks that need exact energy). */
   noRadiationLoss?: boolean
 }
@@ -45,7 +50,8 @@ export function airCavity(plate: PlateParams, c: Cavity) {
   const stiffness = (AIR * SOUND_SPEED ** 2 * area ** 2) / volume
   // Resonance of the plug on the air of a rigid box (Helmholtz).
   const helmholtz = Math.sqrt((stiffness * (hole / area) ** 2) / mass) / (2 * Math.PI)
-  const plug: Mode = { frequency: 0, t60: (Math.log(1000) * (c.quality ?? 15)) / (Math.PI * helmholtz), mass, shape: [-hole / area] }
+  // With a screen the screen is the plug's loss, and `quality` is not used.
+  const plug: Mode = { frequency: 0, t60: c.holeScreen ? Infinity : (Math.log(1000) * (c.quality ?? 15)) / (Math.PI * helmholtz), mass, shape: [-hole / area] }
   // Sound takes energy. A source small beside the wavelength sending a flow q into open air radiates
   // rho w^2 q^2 / (4 pi c) watts: a damper of rho w^2 S^2 / (4 pi c) on the total flow per plate area,
   // which is the stretch rate of the air spring. It grows as frequency squared; the engine's damper
@@ -54,7 +60,9 @@ export function airCavity(plate: PlateParams, c: Cavity) {
   const lowest = 2 * Math.PI * plateFrequency(plate, 1, 1)
   const bodyResonance = Math.sqrt(lowest ** 2 + (stiffness * meanShape(1, 1) ** 2) / (plateMass(plate) / 4))
   const damping = c.noRadiationLoss ? 0 : (AIR * bodyResonance ** 2 * area ** 2) / (4 * Math.PI * SOUND_SPEED)
-  return { stiffness, damping, plug, helmholtz, bodyResonance: bodyResonance / (2 * Math.PI), volume, holeArea: hole }
+  // The screen's pressure drop times the hole's area is a force on the plug in proportion to its speed.
+  const resistance = (c.holeScreen ?? 0) * hole
+  return { stiffness, damping, plug, resistance, helmholtz, bodyResonance: bodyResonance / (2 * Math.PI), volume, holeArea: hole }
 }
 
 /**

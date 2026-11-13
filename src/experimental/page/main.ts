@@ -576,9 +576,10 @@ const GUITAR_SET: StringParams[] = ([[82.41, 0.0064], [110, 0.0036], [146.83, 0.
 // Phase 3C.2.1: the refined board is 8 mm with the bridge near one end, and its sound passes through unbaffled()'s filter.
 const REFINED_BOARD: PlateParams = { ...SPRUCE_PLATE, thickness: 0.008 }
 
-function stringInstrument(strings: StringParams[], modesPerString: number, boardLimit: number, rate: number, refined = false, boxed = false) {
-  const points = strings.map((_, i): [number, number] => [refined ? 0.08 : 0.3, 0.44 + ((i - (strings.length - 1) / 2) * 0.01) / SOUNDBOARD.width])
-  const built = buildInstrument({ strings, loss: DEFAULT_LOSS, stringModes: modesPerString, pluckAt: 0.8, body: plateModes(refined ? REFINED_BOARD : SOUNDBOARD, points, rate, boardLimit), bridge: { stiffness: 1e6 }, output: { port: strings.length, gain: 4 }, air: boxed ? airCavity(REFINED_BOARD, { depth: 0.15, holeRadius: 0.06 }) : undefined }, rate)
+function stringInstrument(strings: StringParams[], modesPerString: number, boardLimit: number, rate: number, refined = false, boxed: boolean | 'damped' = false) {
+  // Phase 3C.2.3 (the damped box): bridge a third of the way across, wider hole with a screen over it.
+  const points = strings.map((_, i): [number, number] => [refined ? 0.08 : 0.3, (boxed === 'damped' ? 1 / 3 : 0.44) + ((i - (strings.length - 1) / 2) * 0.01) / SOUNDBOARD.width])
+  const built = buildInstrument({ strings, loss: DEFAULT_LOSS, stringModes: modesPerString, pluckAt: 0.8, body: plateModes(refined ? REFINED_BOARD : SOUNDBOARD, points, rate, boardLimit), bridge: { stiffness: 1e6 }, output: { port: strings.length, gain: 4 }, air: boxed ? airCavity(REFINED_BOARD, boxed === 'damped' ? { depth: 0.15, holeRadius: 0.08, holeScreen: 100 } : { depth: 0.15, holeRadius: 0.06 }) : undefined }, rate)
   // Every string plucked (a short push at its pluck point), in turn.
   const play = (i: number): Call[] => [['strike', built.strings[i % strings.length], STRING_PLUCK, 0.002, 0.002]]
   return { built, play }
@@ -586,7 +587,10 @@ function stringInstrument(strings: StringParams[], modesPerString: number, board
 
 async function stringBench() {
   await stop()
-  const cases: [string, StringParams[], number, number, boolean?, boolean?][] = [
+  const cases: [string, StringParams[], number, number, boolean?, (boolean | 'damped')?][] = [
+    ['DAMPED box (Phase 3C.2.3), one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true, 'damped'],
+    ['DAMPED box (Phase 3C.2.3), three strings (100 modes each), to 5 kHz', GUITAR_SET.slice(1, 4), 100, 5000, true, 'damped'],
+    ['REFINED board, three strings (100 modes each), to 5 kHz', GUITAR_SET.slice(1, 4), 100, 5000, true],
     ['ENCLOSED box (Phase 3C.2.2), one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true, true],
     ['REFINED board, one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true],
     ['one string (100 modes), soundboard to 2 kHz', [GUITAR_SET[1]], 100, 2000],

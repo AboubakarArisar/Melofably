@@ -88,6 +88,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:soundboard` | Render the soundboard prototype's listening files and Node performance figures into `renders/soundboard/` |
 | `npm run render:soundboard-refined` | Render the before-and-after listening files of the refined soundboard into `renders/soundboard-refined/` |
 | `npm run render:soundboard-enclosed` | Render the open-plate against enclosed-box listening files into `renders/soundboard-enclosed/` |
+| `npm run render:soundboard-damped` | Render the four-way listening files (open plate, box, damped box, approved string) into `renders/soundboard-damped/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

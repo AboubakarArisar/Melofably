@@ -100,6 +100,11 @@ first enclosed air cavity coupled to the plate. The cavity strengthens the
 fundamentals without detuning anything but adds one booming resonance, so
 it stays experimental. See section 9 of [SOUNDBOARD.md](SOUNDBOARD.md).
 
+Phase 3C.2.3 (investigation, awaiting review): that resonance traced to the
+plate's lowest mode on the air spring, and removed by a screen over a wider
+hole and a bridge on a nodal line. No note booms; about half of the bass
+gain is given back. See section 10 of [SOUNDBOARD.md](SOUNDBOARD.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

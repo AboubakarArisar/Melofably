@@ -75,3 +75,35 @@ export async function realtimeFactor(model: Awaited<ReturnType<typeof compileMod
 }
 
 export const concat =(parts: Float32Array[]) => Float32Array.from(parts.flatMap((a) => [...a]))
+
+/**
+ * Writer for groups of listening files into `out` that share one gain (the
+ * loudest of the group peaks at 0.5), so loudness differences inside a group
+ * are the real ones. `info` collects, per file, its level before the gain
+ * (for a pressure: in pascals and dB SPL) and the gain applied.
+ */
+export function groupWriter(out: string) {
+  const info: Record<string, unknown> = {}
+  const peakOf = (x: Float32Array) => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+  const rmsOf = (x: Float32Array) => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / x.length)
+  function writeGroup(unit: string, files: Record<string, Float32Array>, note?: string) {
+    const entries = Object.entries(files)
+    const gain = 0.5 / Math.max(...entries.map(([, x]) => peakOf(x)))
+    const reference = rmsOf(entries[0][1])
+    for (const [name, x] of entries) {
+      if (!x.every(Number.isFinite)) throw new Error(`${name}: non-finite samples`)
+      writeWav(`${out}/${name}.wav`, Float32Array.from(x, (v) => v * gain))
+      info[name] = {
+        quantity: unit,
+        peak: Number(peakOf(x).toPrecision(3)),
+        rms: Number(rmsOf(x).toPrecision(3)),
+        ...(unit === 'Pa' ? { peak_dB_SPL: Number((20 * Math.log10(peakOf(x) / Math.SQRT2 / 20e-6)).toFixed(1)), rms_dB_SPL: Number((20 * Math.log10(rmsOf(x) / 20e-6)).toFixed(1)) } : {}),
+        levelRelativeToFirstInGroup_dB: Number((20 * Math.log10(rmsOf(x) / reference)).toFixed(1)),
+        gainApplied: Number(gain.toPrecision(3)),
+        gainApplied_dB: Number((20 * Math.log10(gain)).toFixed(1)),
+        ...(note ? { note } : {}),
+      }
+    }
+  }
+  return { info, writeGroup }
+}

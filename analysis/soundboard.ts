@@ -38,6 +38,14 @@ export const REFINED: OnBoard = { plate: { ...SPRUCE_PLATE, thickness: 0.008 }, 
  */
 export const ENCLOSED: OnBoard = { ...REFINED, cavity: { depth: 0.15, holeRadius: 0.06 } }
 
+/**
+ * Phase 3C.2.3: the box with its resonances under control. Against ENCLOSED: the bridge stands a third
+ * of the way across the plate, on the line where mode (1,3) does not move, so that mode is not driven;
+ * the hole is wider (80 mm radius) and covered by a screen of 100 Pa s/m, which takes the energy of the
+ * air rushing through it. docs/SOUNDBOARD.md, section 10.
+ */
+export const DAMPED_BOX: OnBoard = { ...REFINED, bridgeAt: [0.08, 1 / 3], cavity: { depth: 0.15, holeRadius: 0.08, holeScreen: 100 } }
+
 /** Where the bridge stands on the plate by default (fractions of length and width): off the nodal lines of the low modes. */
 export const BRIDGE_AT: [number, number] = [0.3, 0.44]
 /** Soundboard modes are kept up to this frequency unless stated. */
@@ -92,7 +100,7 @@ export function onSoundboard(o: OnBoard = {}) {
     output: { port: radiation, gain: 1 },
   }
   const air = o.cavity ? airCavity(plate, o.cavity) : undefined
-  if (air) instrument.air = { stiffness: air.stiffness, damping: o.lossless ? 0 : air.damping, plug: o.lossless ? { ...air.plug, t60: Infinity } : air.plug }
+  if (air) instrument.air = { stiffness: air.stiffness, damping: o.lossless ? 0 : air.damping, resistance: o.lossless ? 0 : air.resistance, plug: o.lossless ? { ...air.plug, t60: Infinity } : air.plug }
   return { instrument, radiation, area: plate.length * plate.width, plate, sampleRate, unbaffled: (o.unbaffled ?? false) && !air, air }
 }
 

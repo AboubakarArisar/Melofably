@@ -18,6 +18,7 @@ top is held. It is the simplest soundboard whose every number can be checked.
 | Tests (12) | `tests/soundboard.test.ts` |
 | Listening renders, Node performance | `analysis/render-soundboard.ts` (`npm run render:soundboard`) |
 | Browser performance | `experimental.html`, "Run string + soundboard benchmark" |
+| Resonance control (Phase 3C.2.3, section 10) | `src/experimental/string/bodyResponse.ts`, `tests/body-response.test.ts` (5), `analysis/render-soundboard-damped.ts` |
 | Diagnosis and air cavity (Phase 3C.2.2, section 9) | `src/experimental/string/airCavity.ts`, `tests/air-cavity.test.ts` (7), `analysis/render-soundboard-enclosed.ts` |
 | Refinements (Phase 3C.2.1, section 8) | `src/experimental/string/soundboardRefined.ts`, `tests/soundboard-refined.test.ts` (9), `analysis/render-soundboard-refined.ts` |
 
@@ -827,5 +828,232 @@ variation. Every block asked for was processed. Its output shelf ran as a native
 5. **Ready for the builder?** The refined open plate: yes, as a plate in
    open air, with one string and a fixed bridge. Its three oddities are now
    explained and none is a fault of the model. The enclosed box: not yet.
+
+Phase 3C.2.3 took up the box's resonance: see section 10.
+
+## 10. Controlling the box's resonance (Phase 3C.2.3)
+
+The box of section 9 (`ENCLOSED`) made C#3 boom. This section finds why,
+tries the physical remedies, and arrives at `DAMPED_BOX`. The open refined
+plate (`REFINED`) and `ENCLOSED` are unchanged and are the references. The
+builder, the engine and the approved instruments are untouched. No
+equaliser, notch or other filter was added anywhere: every change below is a
+dimension, a position or a material property of the body.
+
+Two tools. `bodyResponse.ts` works out, from the body's modes, what a force
+at the bridge does at one frequency (how far the bridge yields; how much air
+flows). It is theory, takes microseconds, and was used to search. The engine
+then played every semitone from E2 to E4 on each finalist. The two agree:
+fundamental levels within 1.5 dB and pitch within 1 cent away from sharp
+resonances (test).
+
+### 10.1 What the 140 Hz peak is
+
+| Step | Resonance |
+| --- | --- |
+| The plate alone: its lowest mode (1,1), **bending** | 96.6 Hz |
+| On the air of the box with the hole shut: the **air's compliance** adds stiffness (188 kN/m on the mean motion against the mode's own 62 kN/m) | 118 Hz |
+| With the hole: the **air in the hole** (1.4 g) is a second mass. Two resonances: air-dominated below the Helmholtz frequency (105 Hz), plate-dominated above | 72 Hz and **140 Hz** |
+
+So the 140 Hz peak is the plate's lowest bending mode, raised by the air
+spring and pushed up further by the air in the hole. Why it is so loud:
+
+- **Coupling.** Mode (1,1) is the mode the bridge drives best and the one
+  that moves most air (mean shape 0.41 against 0.14 for the next).
+- **The hole adds its flow.** Above the Helmholtz frequency the hole's flow
+  is in step with the plate's; at 140 Hz the total is 2.3 times the plate's
+  own (+7 dB).
+- **Radiation efficiency.** A box radiates in all directions; the open plate
+  cancelled front against back. At 140 Hz that is 7 dB.
+- **Damping is not what sets it.** Removing the radiation damper raises the
+  peak 3.5 dB, removing the plug's loss 3 dB, the wood's loss 1.2 dB. The
+  peak's *skirt* is the problem: one lightly damped resonance with nothing
+  else near it still lifts the notes a semitone either side by 10 to 14 dB
+  and those two semitones away by 5 to 9 dB, whatever its top does.
+
+Effect on notes (fundamental of each semitone, dB against the open plate's
+mean, engine): C3 +16, **C#3 +24**, D3 +20, D#3 +15, where the notes around
+are at +6 to +9.
+
+The same measurement showed something sections 8 and 9 under-reported:
+**E4 (329.6 Hz) sits on plate mode (1,3) (331 Hz) on the open plate and on
+the box alike, 13 to 15 dB above its neighbours.** It is the mode behind
+A2's slow attack (9.1). The phrase has no E4 and no G2, so its "4.1 dB" for
+the open plate missed both of that plate's booms: over E2 to E4 the open
+plate's fundamentals span 19.9 dB.
+
+### 10.2 Remedies tried
+
+By theory, every semitone E2 to E4. "Spread" is loudest minus quietest
+fundamental; "step" the largest difference between neighbouring semitones.
+
+| Remedy | Result | Verdict |
+| --- | --- | --- |
+| `ENCLOSED` as built | mean +9.0 dB, spread 23.9 | reference |
+| **A screen over the hole** (flow resistance: cloth, mesh), 20 / 50 / 100 / 500 Pa s/m | the 140 Hz peak falls and broadens: spread below E4 23.9 to 18.7 / 15.9 / 15.8 / 24.2; mean +8.5 / +7.6 / +6.9 / +6.5 | **works, 50 to 100.** Too much and the hole is shut: the 118 Hz resonance returns |
+| Wood loss factor 0.02 / 0.03 / 0.05 / 0.1 | spread 23.4 / 22.8 / 21.8 / 19.6 | fails: needs 0.1, eight times spruce |
+| Box depth 5 to 40 cm, hole 30 to 100 mm | moves both resonances; best (15 cm, 100 mm) spread 23.1 | does not remove the peak; a wide hole helps a little |
+| Radiation loss at the true frequency (140 not 118 Hz) | at most 1.5 dB off the peak | not pursued |
+| Bridge nearer the centre, x = 0.12 / 0.20 / 0.30 | mean +12 / +17 / +20 dB, pitch pull 6 / 12 / 12 cents | fails on pitch |
+| Bridge across the grain at y = 0.30 | spread 43 dB: an anti-resonance between modes (1,1) and (1,3) silences some notes | fails |
+| **Bridge at y = 1/3**: the nodal line of every mode (m, 3) | mode (1,3) is not driven at all: the E4 peak (29 dB by theory) goes, and A2's slow attack with it | **works** |
+| Plate 9 mm instead of 8 | mode (1,3) moves to 373 Hz, out of the E2 to E4 range | rejected: that only moves the boom to F#4, outside what is measured |
+| More cavity modes | the box's first standing wave is at 343 Hz and couples to plate modes that do not radiate on the axis | not justified for a 140 Hz problem |
+
+Frequency-dependent cavity loss is what the screen is: its force is
+proportional to the air's speed through the hole, so it takes most where the
+hole's flow is greatest, at and around the two box resonances, and little
+elsewhere.
+
+### 10.3 The damped box
+
+`DAMPED_BOX`: the refined 8 mm plate; box 15 cm deep (30 litres) as before;
+**bridge at (0.08, 1/3)** instead of (0.08, 0.44); **hole of 80 mm radius**
+instead of 60; **a screen of 100 Pa s/m over it** (2.0 N s/m on a 3.3 g plug:
+a quality factor near 1). In the engine: one more damper, from the plug to
+a fixed point.
+
+Every semitone from E2 to E4 in the engine, one string each:
+
+| | Open plate | Box of 9.4 | Box of 9.4 + screen only | **Damped box** | Damped, bridge at x = 0.10 |
+| --- | --- | --- | --- | --- | --- |
+| Worst pitch error | 3.3 cents | 3.3 | 3.3 | **2.7** | 3.8 |
+| Mean fundamental | 0 dB | +9.0 | +7.3 | **+3.7** | +5.6 |
+| Median fundamental | 0 dB | +8 | | **+5** | |
+| Fundamentals, loudest to quietest | 19.9 dB | 21.6 | 21.9 | **14.9** | 14.7 |
+| Standard deviation | 5.3 dB | 5.7 | 4.4 | **4.1** | 4.0 |
+| Largest step between semitones | 12.7 dB | 13.1 | 13.1 (E4) | **3.4** | 4.3 |
+| Largest resonance amplification (a note above the mean of those 3 semitones either side) | 16.3 dB (G2) | 13.5 (C#3) | 4.2 | **2.8** | 3.7 |
+| Whole-note level, mean | 57.0 dB SPL | 60.9 | 59.9 | **57.3** | 58.7 |
+| Whole-note level, loudest to quietest | 17.4 dB | 15.2 | 15.2 | **16.5** | 16.0 |
+| Attack: time to loudest, worst note | 122 ms | 111 | 111 | **77** | 77 |
+| Notes taking over 60 ms to reach their loudest | 4 | 4 | 3 | **1** | 1 |
+| Decay (T60) of the fundamental, shortest to longest | 2.0 to 4.9 s | 2.4 to 3.7 | 2.4 to 3.7 | **2.9 to 3.7** | 2.7 to 3.7 |
+
+Fundamental of each semitone, dB against the open plate's mean:
+
+```
+note        E2  F  F# G  G# A  A# B  C3 C# D  D# E  F  F# G  G# A  A# B  C4 C# D  D# E4
+open plate  -5  1  9  14 5  2  0  -2 -3 -3 -4 -4 -3 -4 -5 -4 -4 -3 -2 -1 -1 0  1  2  15
+box of 9.4  3   3  3  4  5  7  9  11 16 24 20 15 12 9  7  6  6  6  6  6  6  6  7  7  20
+damped box  -3  0  1  2  4  6  7  8  9  11 10 9  8  6  5  4  3  3  3  2  2  1  0  -4 -4
+```
+
+The damped box has no boom. What is left is one broad, gentle rise of 11 dB
+centred on C#3, never more than 3.4 dB from one semitone to the next.
+
+Single notes and the phrase (recordings; fundamental in dB SPL at 1 m):
+
+| | Open plate | Box of 9.4 | **Damped box** | Approved Faust string |
+| --- | --- | --- | --- | --- |
+| Fundamental of E2 / A2 / C#3 / B3 / E4 | 32.3 / 39.2 / 34.5 / 36.0 / 50.9 | 40.2 / 44.4 / 61.3 / 43.2 / 56.7 | **34.2 / 43.1 / 48.1 / 39.9 / 33.1** | not a pressure |
+| A2: third harmonic against the fundamental | +9.3 dB | +8.9 | **-15.5** | -5.2 |
+| A2: share of energy 80 to 300 Hz | -10.9 dB | -9.3 | **-2.3** | -1.0 |
+| A2: rise, 10 to 90 % | 92 ms | 84 | **19** | under 1 |
+| C#3: rise | 2 ms | 73 | **11** | under 1 |
+| Phrase: pitch errors | -0.2 to -0.7 c | +0.2 to -0.8 | **-0.2 to -0.8** | -0.8 to -1.6 |
+| Phrase: fundamentals, loudest to quietest | 4.1 dB | 15.6 | **6.2** | 5.8 |
+| Phrase: level | 64.2 dB SPL | 67.9 | **64.0** | |
+| Largest step between samples, of the peak | 0.15 | 0.11 | 0.21 | 0.13 |
+
+Energy and stability (tests): without losses the total energy of string, box
+and air drifts by less than 1e-6; with losses it never rises, with one,
+three and six strings plucked at 10 N and the plate struck; no engine fault,
+no non-finite sample.
+
+### 10.4 What it costs, and what is not solved
+
+1. **Half the bass gain is given back.** The mean fundamental is +3.7 dB
+   over the open plate, where the undamped box had +9.0. The screen takes
+   energy at exactly the frequencies where the box helped most. In the
+   lowest octave (E2 to B2) the damped box averages the same as the open
+   plate; the difference is that the open plate's figure is one boom at G2
+   and the damped box's is even. From C3 up it is 5.4 dB stronger.
+2. **It is not louder.** Whole notes average 57.3 dB SPL against 57.0 for
+   the open plate, and the phrase is 0.3 dB quieter. A2 is 5.6 dB quieter
+   as a whole note, because the third harmonic that made most of its level
+   on the open plate is no longer amplified. What changes is the balance:
+   the fundamental now leads, as it does on the approved string.
+3. **Two octaves are not flat.** 14.9 dB from the quietest fundamental (E4)
+   to the loudest (C#3), against the phrase-based target of about 4 dB. The
+   phrase's own notes span 6.2 dB.
+4. **Whole-note levels still vary by 16 dB** from note to note, as on every
+   body here. Higher harmonics meet higher plate modes; the bridge position
+   and the screen do nothing about those.
+5. **The nodal line is one line.** With several strings 10 mm apart across
+   the grain only the middle one stands on it; the outer strings of six are
+   25 mm away and drive mode (1,3) at about a quarter of what the old
+   position did. One string is the tested case.
+6. **The hole is large** (16 cm across in a 50 x 40 cm front), and the model
+   takes no account of where on the box it is. The plug's mass uses the
+   end correction for a small hole.
+7. **The screen's 100 Pa s/m is a design value**, in the range of acoustic
+   cloths, not a measured material.
+8. The approximations of 9.4 remain: lumped air (wrong above about 340 Hz),
+   a radiation damper fixed at one frequency, a first-order radiation shelf.
+
+### 10.5 Performance
+
+Mains power. 100 modes per string, board modes to 5 kHz. Three strings:
+A2, D3, G3. The worklet's clock resolves 1 ms, and its report counts blocks
+of 2 ms or more (the budget is 2.67 ms) rather than giving the longest one.
+
+| | Node, % of one core | Node, longest block | Chromium AudioWorklet, live, % of one core | Blocks of 2 ms or more | Blocks processed / expected | Output-device dropouts |
+| --- | --- | --- | --- | --- | --- | --- |
+| Open plate, one string | 7.7 | 1.9 ms | 9.3 | 5 of 2712 | 2712 / 2712 | 0 |
+| Box of 9.4, one string | 8.7 | 1.5 ms | 8.3 | 1 of 2733 | 2733 / 2733 | 0 |
+| **Damped box, one string** | 9.4 | 2.6 ms | 11.5 | 6 of 2715 | 2715 / 2715 | 0 |
+| Open plate, three strings | 18.2 | 4.3 ms | 20.6 | 9 of 2723 | 2723 / 2723 | 0 |
+| **Damped box, three strings** | 20.8 | 5.7 ms | 22.5 | 23 of 2723 | 2723 / 2723 | 0 |
+
+Through the speakers; with no output device the figures were within 3 points
+and also without dropouts. **One string is comfortable**: an eighth of a core
+and 6 slow blocks in 2715. **Three strings ran without a dropout but with
+little margin**: 23 blocks in 2723 took 2 ms or more against a budget of
+2.67 ms, and Node's longest block (5.7 ms, which includes its own
+garbage collection) is over the budget. Average CPU alone would call both
+safe; the slow-block count does not for three. Six strings on the open plate,
+run for scale, had 246 slow blocks.
+
+### 10.6 Listening files
+
+`npm run render:soundboard-damped` writes 22 files to
+`renders/soundboard-damped/` with `listening.json`, which records each
+file's peak and RMS pressure in pascals and dB SPL before any gain. The
+three bodies of a note share one gain; the Faust string is not a pressure
+and has its own.
+
+| Note | 1: open plate, 2: box of 9.4, 3: damped box (peak, dB SPL at 1 m) | Gain for the three | 4: approved Faust string |
+| --- | --- | --- | --- |
+| `E2-…` (bottom note) | 71.6 / 76.0 / 72.3 | +9.0 dB | not available (below its open string) |
+| `A2-…` | 73.6 / 77.4 / 71.3 | +7.5 dB | +2.3 dB |
+| `Cs3-…` (the problem note) | 68.1 / 79.0 / 69.2 | +5.9 dB | +2.3 dB |
+| `B3-…` | 72.8 / 75.3 / 73.4 | +9.6 dB | +2.3 dB |
+| `E4-…` (on plate mode (1,3)) | 77.8 / 80.5 / 76.9 | +4.5 dB | not rendered |
+| `G1`, `G2`, `G3` phrase; `G4` Faust | 81.1 / 81.9 / 79.9 | +3.0 dB | +0.4 dB |
+
+No listening was done: the model has no way to hear. Statements about the
+sound above are measurements of these files.
+
+### 10.7 Decision
+
+**APPROVE the damped box for a first builder integration, as the body of
+one string with fixed geometry.**
+
+For: no note booms (largest semitone step 3.4 dB, was 13); pitch within
+2.7 cents from E2 to E4, better than the open plate; no slow attacks but one;
+decay even; the fundamental leads its harmonics and the low register holds
+its share of the energy, close to the approved string's balance; phrase
+fundamentals within 6.2 dB (approved string 5.8); conserves energy, stable,
+and cheap enough for one string in a real AudioWorklet.
+
+Against, and to be accepted knowingly: the bass gain is modest (+3.7 dB
+mean, none in the lowest octave beyond evenness); it is not louder than the
+open plate; fundamentals still differ by 15 dB across two octaves in one
+smooth rise; it is a 30-litre box with a 16 cm screened hole, not a guitar.
+
+If more bass is wanted later, the measured lever is the bridge: x = 0.10
+gives +5.6 dB at 3.8 cents. A flexible back or bracing would be the next
+physics, and neither is needed for a first integration.
 
 Nothing beyond this investigation has been started.
