@@ -86,6 +86,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:builder` | Render listening WAV files of the builder's three examples into `renders/builder/` |
 | `npm run render:string` | Render the coupled-string prototype's listening files and performance figures into `renders/coupled-string/` |
 | `npm run render:soundboard` | Render the soundboard prototype's listening files and Node performance figures into `renders/soundboard/` |
+| `npm run render:soundboard-refined` | Render the before-and-after listening files of the refined soundboard into `renders/soundboard-refined/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

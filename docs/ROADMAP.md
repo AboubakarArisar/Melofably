@@ -89,6 +89,11 @@ radiation model, checked against plate theory and timed in a real
 AudioWorklet. See [SOUNDBOARD.md](SOUNDBOARD.md). Still isolated from the
 builder.
 
+Phase 3C.2.1 (refinement, awaiting review): the soundboard made thicker, its
+bridge moved near an edge and its radiation given no baffle, so that notes
+stay in tune and the low boom is gone; the low register is thin as a result.
+See section 8 of [SOUNDBOARD.md](SOUNDBOARD.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

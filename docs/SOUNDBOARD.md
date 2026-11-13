@@ -18,6 +18,7 @@ top is held. It is the simplest soundboard whose every number can be checked.
 | Tests (12) | `tests/soundboard.test.ts` |
 | Listening renders, Node performance | `analysis/render-soundboard.ts` (`npm run render:soundboard`) |
 | Browser performance | `experimental.html`, "Run string + soundboard benchmark" |
+| Refinements (Phase 3C.2.1, section 8) | `src/experimental/string/soundboardRefined.ts`, `tests/soundboard-refined.test.ts` (9), `analysis/render-soundboard-refined.ts` |
 
 Measured on the development machine (Node 24.14; Chromium 156). Timings vary
 by 10 to 30 % between runs. No claim is made about how anything sounds.
@@ -332,4 +333,223 @@ unchanged: it is modal data and one extra port.
    settled by listening to `D4`, `D5`, `E1` to `E6` and `G1` before any
    interface is built.
 
-Nothing beyond this prototype has been started.
+Phase 3C.2.1 acted on item 6: see section 8.
+
+## 8. Acoustic refinement (Phase 3C.2.1)
+
+An analysis of the 22 recordings of section 5 found three faults in the
+prototype's sound: the plate's lowest mode (48 Hz) was louder than the
+string's fundamental; notes of a phrase were out of tune by up to 47 cents;
+and the fundamentals of the six phrase notes differed in level by 28 dB. This
+section changes the soundboard to remove them. `soundboard.ts`, the engine,
+the builder and the approved instruments are unchanged; the Phase 3C.2 board
+remains the default of `onSoundboard()`, and the 22 recordings are the
+"before" of every comparison.
+
+### What changed
+
+| | Phase 3C.2 | Refined (`REFINED` in `analysis/soundboard.ts`) |
+| --- | --- | --- |
+| Thickness | 4 mm | **8 mm** |
+| Bridge, as fractions of length and width | (0.30, 0.44) | **(0.08, 0.44)**: 4 cm from one end |
+| Radiation | baffled, on axis | **no baffle**, on axis |
+| Plate mass, lowest mode, modes below 5 kHz | 336 g, 48.3 Hz, 158 | 672 g, 96.6 Hz, 76 |
+| Material, size, loss factor, bridge spring | | unchanged |
+
+Why each one, physically:
+
+1. **Thickness sets how hard the plate pushes back.** The plate's mean
+   mobility falls as thickness squared (section 2), so an 8 mm plate yields a
+   quarter as much to the string as a 4 mm one, and its modes are twice as
+   far apart (every frequency doubles). Both reduce how far a string partial
+   is pulled when it meets a plate mode. It also lifts the lowest mode from
+   48 Hz to 97 Hz, above which nothing of the plate can boom. As before, the
+   thickness stands in for bracing: 8 mm of bare spruce is not a guitar top,
+   it is closer to a piano's soundboard.
+2. **A bridge near an edge is on stiffer ground.** A simply supported plate
+   does not move at its edges, so every low mode is small 4 cm from the end:
+   mode (m, n) is felt there as sin(0.08 m pi), 0.25 for m = 1 against 0.81
+   at the old position. A pull is in proportion to the square of that. This
+   was the strongest single lever found.
+3. **A plate in a wall is not a plate in the open.** The Phase 3C.2 radiation
+   assumed an infinite baffle. Without one, air slips round the edge from
+   front to back at low frequencies and the plate radiates as a dipole.
+   `unbaffled()` models it as the far field of a rigid disc of the same area
+   in free air against the same disc in a wall: 4ka/(3 pi) at low
+   frequencies, 1 at high ones. That is a first-order high-pass with its
+   corner at 3c/(8a) = 510 Hz for this plate (a = 0.252 m). It is applied to
+   the pressure outside the engine, as the pressure constant already is.
+
+### What was tried and how the configuration was chosen
+
+Each candidate was run two ways: the six phrase notes (A2 D3 E3 G3 A3 B3)
+with all six strings on the board, and every semitone from E2 to E4 with one
+string. Radiated pressure at 1 m, 100 string modes, board modes to 5 kHz.
+
+| Board | Phrase: worst pitch error | Phrase: spread of fundamental levels | E2 to E4: worst error | Notes off by more than 5 cents |
+| --- | --- | --- | --- | --- |
+| 4 mm, bridge (0.30, 0.44), baffled (Phase 3C.2) | 39.3 cents | 28.8 dB | 44.5 cents | 16 of 25 |
+| 6 mm, same bridge, baffled (the 6 mm variant of section 3) | 10.9 | 8.7 | not run | |
+| 7 mm, same bridge, unbaffled | 3.0 | 5.4 | 35.0 | 8 of 25 |
+| 10 mm, same bridge (phrase measured baffled, semitones unbaffled) | 6.4 | 11.4 | 15.1 | 4 of 25 |
+| 6 mm, bridge (0.12, 0.44), unbaffled | 6.9 | 11.1 | 10.5 | 1 of 25 |
+| 6 mm, bridge (0.08, 0.44), unbaffled | 3.7 | 19.4 | 5.9 | 1 of 25 |
+| 8 mm, bridge (0.12, 0.44), unbaffled | 1.2 | 5.4 | 7.1 | 3 of 25 |
+| **8 mm, bridge (0.08, 0.44), unbaffled (chosen)** | **0.8** | **5.6** | **3.3** | **0 of 25** |
+| 8 mm, bridge (0.08, 0.30), unbaffled | 1.1 | 5.7 | 2.5 | 0 of 25, but fundamentals from E2 to E4 differ by 41 dB against 20 |
+
+Findings that shaped the choice:
+
+- **The phrase alone is a misleading test.** 7 mm looked excellent on the six
+  phrase notes (3 cents) and had a 35 cent error at E2. A plate has a
+  resonance somewhere under every instrument's range; thickness moves the
+  bad notes, it does not remove them. Only the chromatic run shows this.
+- **Thickness does not improve steadily.** 7 mm was worse than both 6 and
+  8 mm at the edge bridge. What matters is where the strongly driven modes
+  fall against the notes, so the chosen board is good for this size and
+  these notes, not in general.
+- **Tried and not adopted** (all implemented in `soundboardRefined.ts` and
+  tested, none part of `REFINED`):
+  a bridge with mass (20 g made 6 mm worse: 26 cents);
+  a bridge with length (`bridgeLength`, the force spread along a line: a
+  small gain on the phrase, none on the chromatic run);
+  losses that differ along and across the grain (`loss`: evenness worse at
+  6 mm, no change at 7 mm);
+  taking radiated energy from fast modes (`radiationLoss`: no measurable
+  effect, air takes far less than the wood);
+  a listener off the axis (`listener`, the far field of each mode at its own
+  frequency: fundamental levels less even, 9 to 13 dB, and less treble);
+  a higher loss factor (0.03: the worst pull about one cent smaller, sound
+  3.5 dB quieter).
+
+### Before and after
+
+A2 string (2 N pluck) unless stated; "approved" is the Faust string, whose
+output is not a pressure, so only its shape can be compared, not its level.
+
+| | Phase 3C.2 board | Refined board | Approved Faust string |
+| --- | --- | --- | --- |
+| Phrase, ten notes: pitch errors | +46.8 to -18.1 cents | **-0.2 to -0.7 cents** | -0.8 to -1.6 cents |
+| Phrase: fundamental level, loudest to quietest note | 28.3 dB | **4.1 dB** | 5.8 dB |
+| E2 to E4, one string: worst pitch error | 44.5 cents | **3.3 cents** | not applicable (no body coupling) |
+| Plate's lowest mode against the string's fundamental | 48 Hz, **+3.9 dB** | 96 Hz, **-11.1 dB** | none |
+| Same for the B3 string | +20.9 dB | -15.5 dB | none |
+| Share of energy below 80 Hz, single note | -1.4 dB (72 %) | below -100 dB | below -100 dB |
+| Share below 80 Hz, phrase | -3.7 dB (43 %) | -46.7 dB | -31.8 dB |
+| Share 80 to 300 Hz | -5.9 dB | **-10.9 dB** | -1.0 dB |
+| Share 300 Hz to 1 kHz | -16.3 dB | -0.4 dB | -7.0 dB |
+| Share 1 to 4 kHz | -38.8 dB | -18.6 dB | -24.6 dB |
+| Harmonics 2, 3, 4, 6 against the fundamental, dB | -18, -13, -17, -65 | -7, **+9**, -28, 0 | 0, -5, -10, -18 |
+| Decay time (T60) by band: 80-300, 300-1k, 1-4k Hz | 3.7, 3.2, 1.7 s | 3.7, 2.5, 1.8 s | 3.7, 3.6, 2.5 s |
+| Time for the level to rise from 10 to 90 % of its peak | 7 ms | 92 ms (B3: 10 ms) | under 1 ms |
+| Peak level at 1 m | 85.2 dB SPL | 73.6 dB SPL | not a pressure |
+| Level, A2 / B3 / phrase, against the Phase 3C.2 board | 0 | **-10.7 / -13.2 / -12.8 dB** | |
+| A pitch tracker (autocorrelation) follows the note | no: 0 of 56 frames | yes: 56 of 56, within 0.4 cents | yes |
+| Largest step between samples, of the peak | 0.08 | 0.15 | 0.13 |
+| String plucked: most of the energy the board held (no losses) | 13.7 % | 8.1 % | |
+| Board struck: most the string held (no losses) | 16.4 % | 14.6 % | |
+| Energy drift without losses, 0.3 to 2 s | 2.2e-12 | 2.5e-12 | |
+| Non-finite samples, engine faults, energy rises with losses | none | none (six strings plucked at 10 N, board struck) | |
+
+What the refinement did not fix, and what it made worse:
+
+1. **The low register is now thin.** The fundamental of A2 is 9 dB below its
+   third harmonic and 80 to 300 Hz holds 8 % of the energy, where the
+   approved string has 79 %. This is the physics of the model, not a tuning
+   mistake: a 0.5 x 0.4 m plate in the open cannot radiate 110 Hz (the
+   no-baffle loss is 13 dB there), and the stiff edge that keeps the string
+   in tune also takes less from it. A guitar gets its bass from the air in
+   its body, which this model does not have.
+2. **It is 11 to 13 dB quieter.** About 4 dB of that is the bridge
+   position (files `L1` and `L2`), the rest the thickness and the missing
+   baffle.
+3. **A2 swells for a tenth of a second** instead of starting at full level.
+   The measured rise is 92 ms; the cause was not investigated (the string's
+   fundamental at 110 Hz and the plate's lowest mode at 96 Hz are 14 Hz
+   apart, which would beat at that rate, but that is a conjecture).
+4. **The plate's own lowest mode is still audible in the numbers**, 11 dB
+   under the fundamental of A2 and 14 Hz below it.
+5. **Tuning depends on the bridge staying where it is.** On the same refined
+   plate, A2 is pulled 6.5 cents with the bridge at (0.30, 0.44) and 10.5
+   at the centre, both about 4 to 5 dB louder and with far more 80-300 Hz
+   (-0.7 dB). Loudness and fullness are bought with tuning error, and the
+   other way round.
+6. **The unbaffled correction is a rigid-disc formula** applied to a bending
+   plate, on its axis. It has the right low-frequency slope and size for a
+   plate moving as a whole; it is not a calculation of this plate's field.
+
+### Performance
+
+Same machine as section 4, but **on battery this time, and about twice as
+slow as when section 4 was measured** (the Phase 3C.2 board, one string, to
+5 kHz: 15.3 % of a core in Node now against 7.7 % then). Compare the rows of
+this table with each other, not with section 4.
+
+| | Modes | Node, % of one core | Chromium AudioWorklet, live, % of one core | Blocks of 2 ms or more (of about 2700) | Dropouts |
+| --- | --- | --- | --- | --- | --- |
+| Phase 3C.2 board, one string, board to 5 kHz | 258 | 15.3 | 18.1 (speakers), 18.6 (no device) | 19, 16 | 0 |
+| **Refined board, one string, board to 5 kHz** | 176 | **10.3** | **12.5 (speakers), 14.0 (no device)** | 3, 10 | 0 |
+| Phase 3C.2 board, six strings | 711 | 56.9 | 77.8, 82.6 | 2304, 2269 | 0 reported |
+| Refined board, six strings | 629 | 47.0 | 72.6, 70.7 | 2146, 1950 | 0 reported |
+
+The refined board costs about two thirds of the Phase 3C.2 board because it
+has half the modes. The no-baffle filter ran in the browser as a native
+first-order filter node after the worklet; its cost is not in the engine
+figure and was too small to see in the offline render time. One string
+processed every block it was asked for with no dropout while using an
+eighth of a core on a throttled machine. Six strings are not real-time safe,
+as before. The worklet's clock has a resolution of 1 ms, so the "2 ms or
+more" counts are coarse.
+
+### Listening files
+
+`npm run render:soundboard-refined` writes 16 files to
+`renders/soundboard-refined/` with `listening.json`. Files that share a
+group share one gain, so loudness differences inside a group are real; each
+"full-scale" file repeats a refined recording at its own gain so that tone
+can be compared without the loudness difference. The Phase 3C.2 recordings
+are in `renders/soundboard/` as before.
+
+| Files | What | Gain |
+| --- | --- | --- |
+| `H1`, `H2` | A2 on the Phase 3C.2 board and on the refined board | both -0.3 dB (x 0.97) |
+| `H3` | `H2` at full scale | +11.3 dB |
+| `I1`, `I2` | B3, same pair | both +0.4 dB |
+| `I3` | `I2` at full scale | +12.1 dB |
+| `K1`, `K2` | A2 and B3 on the approved Faust string | both +2.3 dB |
+| `L1` to `L4` | Refined plate, bridge at (0.08, 0.44), (0.30, 0.44), the centre, (0.30, 0.12) | all +3.2 dB |
+| `G1`, `G2` | The phrase on the Phase 3C.2 board and on the refined board | both -8.4 dB |
+| `G3` | `G2` at full scale | +3.8 dB |
+| `G4` | The phrase on the approved Faust string | +0.4 dB |
+
+### Recommendation
+
+**The refined soundboard is ready to go into the builder as a string's
+body, on the conditions below. It is not a finished instrument sound.**
+
+For it: every note from E2 to E4 within 3.3 cents, phrase notes as even in
+level as the approved string's, no boom, no instability, energy exchanged
+both ways, a third cheaper than before, one string comfortable in a real
+AudioWorklet.
+
+Conditions:
+
+1. **Listen to `H3`, `I3` and `G3` against `K1`, `K2` and `G4` first.** The
+   measurements say the low notes will sound thin beside the approved
+   string. Whether that is acceptable is a judgement no measurement here
+   makes.
+2. **Fix the bridge position in a first version**, or show the pitch pull
+   when it is moved (item 5 above).
+3. **One string**, as section 7 already said.
+4. The engine additions of section 7 (a pluck, a differentiator) are still
+   needed, plus the first-order no-baffle filter at the output.
+
+If the thin low register is not acceptable, the physical next step is an
+enclosed volume of air behind the plate: an air spring on the plate's mean
+motion (stiffness about rho c^2 S^2 / V) and, with a sound hole, a Helmholtz
+resonance near 100 Hz that radiates as a monopole. That is where a guitar's
+bass comes from. It has not been built or measured, and the stiffness figure
+is an estimate. Adding equalisation instead would hide the problem this
+phase was asked not to hide.
+
+Nothing beyond this refinement has been started.

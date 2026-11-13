@@ -4,6 +4,9 @@
 import { buildInstrument, STRING_PLUCK, STRING_WATCH, type BuiltInstrument, type Instrument } from '../src/experimental/string/instrument.ts'
 import { DEFAULT_LOSS, GUITAR_A, pickCutoff, pluckForce, type StringLoss, type StringParams } from '../src/experimental/string/modalString.ts'
 import { plateModes, radiatedPressure, SPRUCE_PLATE, type PlateParams } from '../src/experimental/string/soundboard.ts'
+import { refinedPlateModes, unbaffled, type Refinements } from '../src/experimental/string/soundboardRefined.ts'
+import { STRING_PLUCK as PLUCK_PORT } from '../src/experimental/string/instrument.ts'
+import { outputBuffer } from './wasm.ts'
 import { halfSinePulse } from '../src/experimental/physics/bar.ts'
 import type { Mode } from '../src/experimental/physics/resonator.ts'
 import { SR } from './lib.ts'
@@ -18,6 +21,14 @@ export type { Instrument, Mode, PlateParams, StringLoss, StringParams }
  * thickness stands in for the bracing. It is a calibration, not a derivation.
  */
 export const SOUNDBOARD: PlateParams = { ...SPRUCE_PLATE, thickness: 0.004 }
+
+/**
+ * The Phase 3C.2.1 soundboard: 8 mm, the bridge 4 cm from one end, no baffle.
+ * Chosen by measurement (docs/SOUNDBOARD.md, section 8): of the plates tried
+ * it is the one on which no note from E2 to E4 is pulled more than 5 cents.
+ * Pass with other options: onSoundboard({ ...REFINED, strings }).
+ */
+export const REFINED: OnBoard = { plate: { ...SPRUCE_PLATE, thickness: 0.008 }, bridgeAt: [0.08, 0.44], unbaffled: true }
 
 /** Where the bridge stands on the plate by default (fractions of length and width): off the nodal lines of the low modes. */
 export const BRIDGE_AT: [number, number] = [0.3, 0.44]
@@ -37,6 +48,10 @@ export interface OnBoard {
   bridge?: { stiffness: number; damping?: number }
   /** Mass of the bridge, kg. With one, all strings share the first bridge point. */
   bridgeMass?: number
+  /** Phase 3C.2.1 refinements of the plate (bridge footprint, losses, listener direction). Absent: the Phase 3C.2 plate. */
+  refine?: Refinements
+  /** The plate has no baffle: its bass is reduced as a dipole's is (see unbaffled()). */
+  unbaffled?: boolean
   /** No material damping in the plate (for checks that need sharp resonances or exact energy). */
   lossless?: boolean
   sampleRate?: number
@@ -53,7 +68,8 @@ export function onSoundboard(o: OnBoard = {}) {
   const strings = o.strings ?? [GUITAR_A]
   const [x, y] = o.bridgeAt ?? BRIDGE_AT
   const points = strings.map((_, i): [number, number] => [x, y + ((i - (strings.length - 1) / 2) * 0.01) / plate.width])
-  const body = plateModes(plate, points, sampleRate, o.limit ?? BOARD_LIMIT).map((mode) => (o.lossless ? { ...mode, t60: Infinity } : mode))
+  const all = o.refine ? refinedPlateModes(plate, points, sampleRate, o.limit ?? BOARD_LIMIT, o.refine) : plateModes(plate, points, sampleRate, o.limit ?? BOARD_LIMIT)
+  const body = all.map((mode) => (o.lossless ? { ...mode, t60: Infinity } : mode))
   const radiation = strings.length
   const instrument: Instrument = {
     strings,
@@ -65,7 +81,7 @@ export function onSoundboard(o: OnBoard = {}) {
     bridgeMass: o.bridgeMass,
     output: { port: radiation, gain: 1 },
   }
-  return { instrument, radiation, area: plate.length * plate.width, plate, sampleRate }
+  return { instrument, radiation, area: plate.length * plate.width, plate, sampleRate, unbaffled: o.unbaffled ?? false }
 }
 
 export interface Events {
@@ -131,3 +147,39 @@ export const pressure = (recording: Recording, area: number, sampleRate = SR, di
 
 /** Sound pressure level of a peak pressure, dB re 20 micropascal (of the equivalent sine: peak / sqrt 2). */
 export const splOfPeak = (peakPa: number) => 20 * Math.log10(peakPa / Math.SQRT2 / 20e-6)
+
+/**
+ * The sound of a soundboard's motion at 1 m, Pa: the baffled far field of
+ * its radiation port, then the unbaffled correction if the setup asks for it.
+ */
+export function soundOf(setup: ReturnType<typeof onSoundboard>, velocity: ArrayLike<number>, distance = 1): Float32Array {
+  const baffled = radiatedPressure(velocity, setup.area, setup.sampleRate, distance)
+  return setup.unbaffled ? unbaffled(baffled, setup.area, setup.sampleRate) : baffled
+}
+
+/**
+ * Pluck one string of an instrument and return the velocity of the body's
+ * output port, without the per-sample bookkeeping of perform(): for sweeps
+ * over many configurations.
+ */
+export function pluckOne(inst: Instrument, string: number, seconds: number, sampleRate = SR, force = 2): Float32Array {
+  const built = buildInstrument(inst, sampleRate)
+  const engine = createEngine()
+  run(engine, built.calls)
+  const N = Math.round(seconds * sampleRate)
+  const out = new Float32Array(N)
+  const push = pluckForce(force, pickCutoff(), sampleRate, Math.round(0.2 * sampleRate))
+  for (let n = 0; n < push.length; n++) {
+    engine.applyForce(built.strings[string], PLUCK_PORT, push[n])
+    engine.step()
+    out[n] = engine.output()
+  }
+  const buffer = outputBuffer(engine)
+  for (let at = push.length; at < N; at += 128) {
+    const count = Math.min(128, N - at)
+    engine.process(count)
+    out.set(buffer.subarray(0, count), at)
+  }
+  if (engine.faults()) throw new Error('engine fault')
+  return out
+}
