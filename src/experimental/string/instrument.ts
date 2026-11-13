@@ -28,6 +28,11 @@ export interface Instrument {
   bridgeMass?: number
   /** Body port whose velocity is the engine's output (for example the radiation port), with its gain. */
   output?: { port: number; gain: number }
+  /**
+   * Enclosed air behind the body (airCavity.ts): a spring from the output port to a plug of air, whose
+   * own flow is added to the output. Needs `output`. Absent: none, and the calls are as before.
+   */
+  air?: { stiffness: number; damping: number; plug: Mode }
 }
 
 /** Stiffness of the joint between a bridge mass and the body, N/m: rigid for audio purposes. */
@@ -64,5 +69,11 @@ export function buildInstrument(inst: Instrument, sampleRate: number): BuiltInst
   })
   if (mass >= 0) design.calls.push(['addSpring', mass, 0, body, 0, GLUE, 0, 0, 0])
   if (inst.output) design.output([body, inst.output.port], inst.output.gain)
+  if (inst.air && inst.output) {
+    // The plug's port moves by -(hole area / plate area) times the plug: see airCavity().
+    const plug = design.modal([inst.air.plug])
+    design.calls.push(['addSpring', body, inst.output.port, plug, 0, inst.air.stiffness, inst.air.damping, 0, 0])
+    design.output([plug, 0], -inst.output.gain)
+  }
   return { calls: design.build(), strings, body, bridges, modes: { strings: kept.map((m) => m.length), body: inst.body.length } }
 }

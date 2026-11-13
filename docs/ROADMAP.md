@@ -94,6 +94,12 @@ bridge moved near an edge and its radiation given no baffle, so that notes
 stay in tune and the low boom is gone; the low register is thin as a result.
 See section 8 of [SOUNDBOARD.md](SOUNDBOARD.md).
 
+Phase 3C.2.2 (investigation, awaiting review): the causes of the refined
+board's slow attack on one note, weak fundamental and lower level, and a
+first enclosed air cavity coupled to the plate. The cavity strengthens the
+fundamentals without detuning anything but adds one booming resonance, so
+it stays experimental. See section 9 of [SOUNDBOARD.md](SOUNDBOARD.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

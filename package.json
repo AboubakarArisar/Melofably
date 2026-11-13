@@ -23,6 +23,7 @@
     "render:string": "node analysis/render-string.ts",
     "render:soundboard": "node analysis/render-soundboard.ts",
     "render:soundboard-refined": "node analysis/render-soundboard-refined.ts",
+    "render:soundboard-enclosed": "node analysis/render-soundboard-enclosed.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

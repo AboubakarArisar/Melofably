@@ -6,6 +6,7 @@ import { DEFAULT_LOSS, GUITAR_A, pickCutoff, pluckForce, type StringLoss, type S
 import { plateModes, radiatedPressure, SPRUCE_PLATE, type PlateParams } from '../src/experimental/string/soundboard.ts'
 import { refinedPlateModes, unbaffled, type Refinements } from '../src/experimental/string/soundboardRefined.ts'
 import { STRING_PLUCK as PLUCK_PORT } from '../src/experimental/string/instrument.ts'
+import { airCavity, enclosed, type Cavity } from '../src/experimental/string/airCavity.ts'
 import { outputBuffer } from './wasm.ts'
 import { halfSinePulse } from '../src/experimental/physics/bar.ts'
 import type { Mode } from '../src/experimental/physics/resonator.ts'
@@ -30,6 +31,13 @@ export const SOUNDBOARD: PlateParams = { ...SPRUCE_PLATE, thickness: 0.004 }
  */
 export const REFINED: OnBoard = { plate: { ...SPRUCE_PLATE, thickness: 0.008 }, bridgeAt: [0.08, 0.44], unbaffled: true }
 
+/**
+ * Phase 3C.2.2: the refined board as the front of a closed box 15 cm deep (30 litres) with a round
+ * hole of 60 mm radius. Chosen from nine boxes as the one with the strongest and most even
+ * fundamentals from E2 to E4 (docs/SOUNDBOARD.md, section 9).
+ */
+export const ENCLOSED: OnBoard = { ...REFINED, cavity: { depth: 0.15, holeRadius: 0.06 } }
+
 /** Where the bridge stands on the plate by default (fractions of length and width): off the nodal lines of the low modes. */
 export const BRIDGE_AT: [number, number] = [0.3, 0.44]
 /** Soundboard modes are kept up to this frequency unless stated. */
@@ -52,6 +60,8 @@ export interface OnBoard {
   refine?: Refinements
   /** The plate has no baffle: its bass is reduced as a dipole's is (see unbaffled()). */
   unbaffled?: boolean
+  /** Phase 3C.2.2: a closed box of air with a hole behind the plate (airCavity.ts). The sound is then that of a box, not of an open plate. */
+  cavity?: Cavity
   /** No material damping in the plate (for checks that need sharp resonances or exact energy). */
   lossless?: boolean
   sampleRate?: number
@@ -81,7 +91,9 @@ export function onSoundboard(o: OnBoard = {}) {
     bridgeMass: o.bridgeMass,
     output: { port: radiation, gain: 1 },
   }
-  return { instrument, radiation, area: plate.length * plate.width, plate, sampleRate, unbaffled: o.unbaffled ?? false }
+  const air = o.cavity ? airCavity(plate, o.cavity) : undefined
+  if (air) instrument.air = { stiffness: air.stiffness, damping: o.lossless ? 0 : air.damping, plug: o.lossless ? { ...air.plug, t60: Infinity } : air.plug }
+  return { instrument, radiation, area: plate.length * plate.width, plate, sampleRate, unbaffled: (o.unbaffled ?? false) && !air, air }
 }
 
 export interface Events {
@@ -100,6 +112,11 @@ export interface Recording {
   stringDisplacement: Float32Array
   /** The body's velocity at its last port (the radiation port of a soundboard: its mean surface velocity), m/s. */
   bodyVelocity: Float32Array
+  /**
+   * The engine's output: bodyVelocity for a bare board; with an air cavity, that plus the hole's flow
+   * per plate area. This, not bodyVelocity, is what soundOf() takes when there is a cavity.
+   */
+  output: Float32Array
   /** Energy held by all strings, by the body, and by everything including the bridges, J. */
   energyStrings: Float64Array
   energyBody: Float64Array
@@ -114,7 +131,7 @@ export function perform(inst: Instrument, seconds: number, events: Events, sampl
   const engine = createEngine()
   run(engine, built.calls)
   const N = Math.round(seconds * sampleRate)
-  const out: Recording = { bridgeForce: new Float32Array(N), bridgeVelocity: new Float32Array(N), stringDisplacement: new Float32Array(N), bodyVelocity: new Float32Array(N), energyStrings: new Float64Array(N), energyBody: new Float64Array(N), energy: new Float64Array(N), engine, built }
+  const out: Recording = { bridgeForce: new Float32Array(N), bridgeVelocity: new Float32Array(N), stringDisplacement: new Float32Array(N), bodyVelocity: new Float32Array(N), output: new Float32Array(N), energyStrings: new Float64Array(N), energyBody: new Float64Array(N), energy: new Float64Array(N), engine, built }
   // Forces to apply, per sample: [engine resonator, port, samples from `start`].
   const forces: { r: number; port: number; start: number; samples: Float64Array }[] = []
   for (const p of events.plucks ?? []) {
@@ -131,6 +148,7 @@ export function perform(inst: Instrument, seconds: number, events: Events, sampl
     out.bridgeForce[n] = engine.connectionForce(built.bridges[0])
     out.bridgeVelocity[n] = engine.velocity(built.body, 0)
     out.bodyVelocity[n] = engine.velocity(built.body, last)
+    out.output[n] = engine.output()
     displacement += engine.velocity(built.strings[0], STRING_WATCH) / sampleRate
     out.stringDisplacement[n] = displacement
     let strings = 0
@@ -154,6 +172,7 @@ export const splOfPeak = (peakPa: number) => 20 * Math.log10(peakPa / Math.SQRT2
  */
 export function soundOf(setup: ReturnType<typeof onSoundboard>, velocity: ArrayLike<number>, distance = 1): Float32Array {
   const baffled = radiatedPressure(velocity, setup.area, setup.sampleRate, distance)
+  if (setup.air) return enclosed(baffled, setup.area, setup.sampleRate)
   return setup.unbaffled ? unbaffled(baffled, setup.area, setup.sampleRate) : baffled
 }
 

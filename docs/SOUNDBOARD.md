@@ -18,6 +18,7 @@ top is held. It is the simplest soundboard whose every number can be checked.
 | Tests (12) | `tests/soundboard.test.ts` |
 | Listening renders, Node performance | `analysis/render-soundboard.ts` (`npm run render:soundboard`) |
 | Browser performance | `experimental.html`, "Run string + soundboard benchmark" |
+| Diagnosis and air cavity (Phase 3C.2.2, section 9) | `src/experimental/string/airCavity.ts`, `tests/air-cavity.test.ts` (7), `analysis/render-soundboard-enclosed.ts` |
 | Refinements (Phase 3C.2.1, section 8) | `src/experimental/string/soundboardRefined.ts`, `tests/soundboard-refined.test.ts` (9), `analysis/render-soundboard-refined.ts` |
 
 Measured on the development machine (Node 24.14; Chromium 156). Timings vary
@@ -552,4 +553,279 @@ bass comes from. It has not been built or measured, and the stiffness figure
 is an estimate. Adding equalisation instead would hide the problem this
 phase was asked not to hide.
 
-Nothing beyond this refinement has been started.
+Phase 3C.2.2 investigated the three open points and that air volume: see
+section 9.
+
+## 9. Diagnosis before integration (Phase 3C.2.2)
+
+Section 8 left three things unexplained: the 92 ms attack of A2, its weak
+fundamental, and a level 11 to 13 dB below the Phase 3C.2 board. This section
+finds the cause of each by measurement, then tries the smallest enclosed
+body. The refined board of section 8 is unchanged and is the "before" of
+every comparison. The builder, the engine and the approved instruments are
+untouched; the only change to existing experimental code is an optional
+`air` field on the prototype instrument (absent: the engine calls are the
+same as before) and an `output` signal in the scenario recorder.
+
+### 9.1 The slow attack of A2
+
+**Cause: the third harmonic of A2 (329.9 Hz) lies 7 cents from the plate's
+mode (1,3) at 331.1 Hz, and that mode takes a tenth of a second to build
+up.** It is not a beat between the 110 Hz fundamental and the 96 Hz plate
+mode, as section 8 conjectured.
+
+Where the delay appears along the chain (time for the level to go from 10 to
+90 % of its largest; three window lengths, because the figure depends on the
+window):
+
+| Signal | 1 ms windows (the method of section 8) | One period of the string (9 ms) | 30 ms | Largest at |
+| --- | --- | --- | --- | --- |
+| String displacement | 2 ms | 0 | 0 | 2 to 4 ms |
+| Force at the bridge | 1 | 0 | 0 | 1 ms |
+| Bridge velocity | 30 | 17 | 5 | 21 to 39 ms |
+| Board mean velocity | 26 | 21 | 9 | 18 to 32 ms |
+| Pressure, baffled | 108 | 24 | 17 | 91 to 109 ms |
+| Pressure, no baffle (the sound) | **92** | 75 | 63 | 101 to 148 ms |
+
+The string and the force it puts on the bridge are immediate. The delay
+appears in the board and grows towards the air. Taking the sound apart by
+harmonic shows which part is late:
+
+| Harmonic of the sound | Largest at | Level 20 ms after the pluck, against its largest |
+| --- | --- | --- |
+| 1 (110 Hz) | 32 ms | -1.4 dB |
+| 2 | 4 ms | -2.9 dB |
+| **3 (330 Hz), the strongest: 8 dB above the fundamental** | **136 ms** | **-8.0 dB** |
+| 6 | 21 ms | -0.6 dB |
+
+A resonator driven almost at its own frequency fills up at the rate at which
+it would decay. Mode (1,3) has a T60 of 0.55 s (loss factor 0.012), a time
+constant of 80 ms: what was measured. Each suspect in turn:
+
+| Test | Rise (one-period windows), largest at | Verdict |
+| --- | --- | --- |
+| Refined board | 75 ms, 110 ms | |
+| Plate 5 % thicker (mode (1,3) at 348 Hz, 90 cents from the harmonic) | 20 ms, 28 ms | **the cause: a soundboard resonance on a string harmonic** |
+| Plate 5 % thinner (mode at 315 Hz) | 28 ms, 47 ms | same |
+| Without the plate's modes below 150 Hz (no 96 Hz mode) | 63 ms, 120 ms | not a beat with the 96 Hz mode |
+| With a baffle (no radiation filter) | 24 ms, 102 ms | the filter changes the figure, not the event: the sound is still largest at 100 ms. Without the filter the early fundamental is strong enough to pass 90 % sooner |
+| Bridge at (0.12, 0.44) and (0.30, 0.44) | 75 and 63 ms | bridge placement is not the cause |
+| Sharper pluck (8 kHz instead of 1.9 kHz) | 21 ms, 110 ms | the pluck is not the cause; a brighter first instant moves the 10 % point, not the peak |
+| The measurement | 63 to 92 ms for the same recording | the "92 ms" depends on the window; "largest after 100 to 150 ms" does not |
+
+So the slow attack belongs to this note on this plate. B3 on the same board
+rises in 10 ms. A 5 % change of thickness removes it from A2 and gives it to
+whichever note then has a harmonic on a mode; a resonant body always has
+such notes. Files `D1` and `D2` are the refined plate and the 8.4 mm one.
+
+### 9.2 The weak fundamental
+
+Harmonic 3 of A2 is 10.3 dB above harmonic 1 in the sound (0.2 s onward).
+Stage by stage, each harmonic relative to the fundamental at the same stage:
+
+| Stage | Harmonic 3 against harmonic 1 | What the stage did |
+| --- | --- | --- |
+| Force of the string on the bridge | -13.5 dB | the string itself favours the fundamental |
+| Bridge velocity | +5.3 dB | **+18.8 dB: the plate yields far more at 330 Hz (mode (1,3)) than at 110 Hz** |
+| Board mean velocity | -7.4 dB | -12.8 dB: mode (1,1) moves more air per unit of bridge motion than (1,3) |
+| Pressure, baffled | +2.1 dB | +9.5 dB: pressure goes as frequency times velocity |
+| Pressure, no baffle | +10.3 dB | **+8.2 dB: the missing baffle takes 13.5 dB at 110 Hz and 5.3 dB at 330 Hz** |
+
+And the fundamental's own level against the Phase 3C.2 board, one change at
+a time: thickness **+2.6 dB**, bridge moved to the edge **-9.8 dB**, baffle
+removed **-13.5 dB**: -20.7 dB in all.
+
+- **Soundboard mobility:** not the cause of a weak fundamental (a stiffer
+  plate gave +2.6 dB), but the cause of the strong third harmonic.
+- **Bridge placement:** -9.8 dB. The price of the tuning accuracy.
+- **Unbaffled radiation:** -13.5 dB, the largest single part.
+- **Modal cancellation:** none. At 110 Hz the sum of all modes' contributions
+  is within 0.1 dB of the sum of their sizes (0.4 dB at harmonic 3); the
+  mean velocity at 110 Hz is mode (1,1) alone. Cancellation is large only at
+  harmonic 4 (20 dB), which is weak for that reason.
+- **String-to-plate coupling:** the string delivers 0.17 mJ to the refined
+  board in 2.5 s against 0.43 mJ to the Phase 3C.2 board (-4.2 dB); the
+  bridge position accounts for it.
+
+Changes to the open plate that were tried for the fundamental of A2:
+
+| Change | Fundamental | Pitch, worst from E2 to E4 | Outcome |
+| --- | --- | --- | --- |
+| Bridge at (0.12, 0.44) | +3.2 dB | 7.1 cents, 3 notes over 5 | fails on pitch |
+| Plate 8.4 mm | +2.9 dB, harmonic 3 now 10 dB *below* it | 4.2 cents | works for A2; moves the coincidence to other notes |
+| Larger plate, 0.7 x 0.5 m (lower no-baffle corner) | -7.8 dB | not run | fails: its lowest mode is back at 52 Hz, 2 dB under the fundamental |
+| A closed box behind the plate (9.4) | +5.2 dB | 3.3 cents | the only one that helps every note |
+
+### 9.3 The lower level
+
+It is real. The figures are pascals at 1 m before any gain; normalisation is
+applied only when a file is written, and is recorded. One change at a time:
+
+| Board (A2, 2 N pluck) | Peak, dB SPL | Sound power against Phase 3C.2 | Above 80 Hz only | A-weighted | Energy the string gave the board |
+| --- | --- | --- | --- | --- | --- |
+| 4 mm, bridge 0.30, baffled (Phase 3C.2) | 85.2 | 0 dB | 0 | 0 | 0.43 mJ |
+| 8 mm (thickness) | 87.9 | -2.1 | +3.4 | +1.5 | 0.46 mJ |
+| and bridge at 0.08 | 80.3 | -7.5 | -2.0 | +4.0 | 0.17 mJ |
+| and no baffle (refined) | 73.6 | **-14.0** | -8.5 | **-0.4** | 0.17 mJ |
+
+- **Changed impedance (thickness): -2.1 dB**, and that only because the
+  48 Hz boom went; above 80 Hz the thicker plate is 3.4 dB *louder*.
+- **Reduced energy transfer (bridge at the edge): -5.4 dB.**
+- **Radiation (no baffle): -6.5 dB.**
+- **Normalisation: 0 dB.**
+
+Most of what was lost is sound below about 300 Hz. With the ear's weighting
+for moderate levels (A-weighting) the refined board is 0.4 dB below the
+Phase 3C.2 board: the Phase 3C.2 level was mostly a 48 Hz resonance and bass
+that the weighting discounts. (A-weighting is a standard approximation of
+loudness, not a listening test.)
+
+### 9.4 A minimal enclosed body
+
+**On paper.** Close the back of the plate with a rigid box of volume V and
+cut a round hole of radius r in it. Below the box's first standing wave
+(c / 2L = 343 Hz for 0.5 m) the air inside has one pressure, set by how much
+the plate (area S, mean displacement w) and the plug of air in the hole (area
+s, displacement x) change the volume: energy (rho c^2 / 2V)(S w + s x)^2.
+That is a spring of stiffness rho c^2 S^2 / V between the plate's radiation
+port and a mass of air rho s (1.7 r) seen through the area ratio s / S. Two
+consequences follow without any tuning: the plate's lowest mode is stiffened
+and moves up, and a second resonance appears below it (in a guitar: the air
+resonance and the top resonance). The box also ends the front-to-back
+cancellation of 9.2: the sound is the total flow, plate plus hole, into open
+air. Below the Helmholtz frequency the two flows oppose and cancel; above it
+they add.
+
+**In the engine** (`airCavity.ts`): one extra resonator with one mode (the
+plug), one extra spring, one extra output. No engine change. Nothing is
+synthesised: the hole's sound is the plug's motion, and the plug moves only
+because the plate compresses the air. Three approximations:
+
+1. *Radiation:* `enclosed()` replaces `unbaffled()`: half the pressure of a
+   baffled source at low frequencies (sound spreads all round a small box),
+   all of it at high ones, a first-order shelf centred where the wavelength
+   equals the circumference of a disc of the plate's area (217 Hz).
+2. *Radiation loss:* a small source sending flow q into open air radiates
+   rho w^2 q^2 / (4 pi c) watts. That is taken from the system by a damper
+   on the total flow (it is the air spring's own rate of stretch). The true
+   damper grows as frequency squared; the engine's cannot, so it is fixed at
+   the plate's lowest mode on the closed box (118 Hz: 6.1 N s/m). Above that
+   it takes too little.
+3. *Plug losses:* a quality factor of 15, an estimate. Values of 8 and 30
+   changed no figure below by more than 0.1 dB.
+
+The lumped air is wrong above about 340 Hz, where a real box has standing
+waves; there the model's air only stiffens the plate's mean motion slightly.
+
+**Checks** (tests): struck with nothing lossy, the box rings at the two
+frequencies the exact eigenvalue equation of plate modes, air spring and
+plug gives (within 2 cents); total energy drifts by less than 1e-6; below
+the Helmholtz frequency the radiated sound is more than 40 dB under the body
+resonance (the flows cancel); with a string, energy only falls and nothing
+faults with six strings plucked at 10 N.
+
+**Choosing a box.** Nine boxes on the refined plate, A2:
+
+| Depth, hole radius | Helmholtz, rigid walls | The two body resonances | Fundamental of A2 against the open plate |
+| --- | --- | --- | --- |
+| 6 cm, 30 / 45 / 60 mm | 117 / 144 / 166 Hz | 64+173 / 73+189 / 78+204 Hz | -3.5 / -4.6 / -5.6 dB |
+| 10 cm, 30 / 45 / 60 mm | 91 / 111 / 129 Hz | 60+144 / 70+154 / 75+164 Hz | +2.5 / +1.1 / 0.0 dB |
+| 15 cm, 30 / 45 / 60 mm | 74 / 91 / 105 Hz | 56+127 / 65+133 / 72+140 Hz | +8.3 / +6.6 / **+5.2 dB** |
+| 10 cm, no hole | | 127 Hz | +5.8 dB |
+
+One note is a poor guide here too: A2 gains or loses according to where it
+falls between the two resonances. Over every semitone, the 15 cm box with the
+60 mm hole (`ENCLOSED`: 30 litres, air spring 188 kN/m, plug 1.4 g) had the
+strongest mean fundamental and the least uneven one.
+
+**Result, open plate against box** (same plate, same bridge, same strings):
+
+| | Refined open plate | Enclosed box | Approved Faust string |
+| --- | --- | --- | --- |
+| E2 to E4: worst pitch error | 3.3 cents | **3.3 cents** (0 of 25 over 5) | |
+| E2 to E4: mean level of the fundamental | 0 dB | **+9.0 dB** | |
+| E2 to E4: loudest to quietest fundamental | 19.9 dB | 21.6 dB | |
+| Fundamental of E2 / A2 / B3 | 32.3 / 39.2 / 36.1 dB SPL | 40.2 / 44.4 / 43.2 dB SPL (+7.9 / +5.2 / +7.1) | |
+| **Fundamental of C#3 (138.6 Hz, on the 140 Hz body resonance)** | 34.5 dB SPL | **61.3 dB SPL (+26.8)** | |
+| Level of the whole note, E2 / A2 / C#3 / B3 | 0 | +4.0 / +3.2 / **+17.5** / +1.8 dB | |
+| A2: peak level | 73.6 dB SPL | 77.4 dB SPL | |
+| A2: harmonic 3 against the fundamental | +9.3 dB | +8.9 dB | -5.2 dB |
+| Share of energy 80 to 300 Hz, E2 / A2 / B3 | -10.0 / -10.9 / -11.0 dB | -3.3 / -9.3 / -6.3 dB | A2 -1.0, B3 -2.5 dB |
+| A2: plate's own lowest mode in the sound | 96 Hz at -11 dB | none above -83 dB | none |
+| A2: rise, 10 to 90 % (1 ms windows) | 92 ms | 84 ms | under 1 ms |
+| C#3: rise | 2 ms | 73 ms | |
+| Phrase: pitch errors | -0.2 to -0.7 cents | +0.2 to -0.8 cents | -0.8 to -1.6 |
+| Phrase: loudest to quietest fundamental | 4.1 dB | **15.6 dB** (D3 is 14 dB above the rest) | 5.8 dB |
+| Phrase: level | 0 | +3.7 dB | |
+| Energy drift without losses | 2.5e-12 | below 1e-6 (test limit) | |
+
+**What the box does:** every fundamental from E2 to E4 is stronger, by 5 to
+8 dB away from the resonance, including the bottom note; the 96 Hz plate
+mode is gone from the sound; pitch is untouched; the low register holds more
+of the energy.
+
+**What it does wrong:** the plate's lowest mode, moved to 140 Hz and now
+radiating efficiently, stands 13 to 27 dB above its neighbours. C#3 and D3
+boom. In the phrase the fundamentals are less even than on the open plate
+(15.6 dB against 4.1). The radiation loss of approximation 2 lowers that
+peak by only 2 to 3 dB; a wood loss factor of 0.03 by one more. The mode's
+quality factor is about 80, where a guitar's top resonance is commonly
+measured at a few tens, held down by bracing, by the back and sides and by
+more radiation than a fixed damper gives. The slow attack and strong third
+harmonic of A2 are unchanged, as 9.1 says they must be: the box does not
+move mode (1,3).
+
+### Performance
+
+Mains power, one string of 100 modes, board modes to 5 kHz.
+
+| | Node, % of one core | Chromium AudioWorklet, live, % of one core | Blocks of 2 ms or more | Dropouts |
+| --- | --- | --- | --- | --- |
+| Refined open plate | 9.9 | 9.6 (speakers), 8.9 (no device) | 3, 0 of about 2700 | 0 |
+| Enclosed box | 12.1 | 11.8 (speakers), 9.7 (no device) | 2, 3 of about 2700 | 0 |
+
+The box adds one spring that touches every plate mode: about a fifth more
+work in Node; in the browser the difference is within the run-to-run
+variation. Every block asked for was processed. Its output shelf ran as a native filter node after the worklet.
+
+### Listening files
+
+`npm run render:soundboard-enclosed` writes 15 files to
+`renders/soundboard-enclosed/` with `listening.json`. Each pair has one gain.
+
+| Files | What | Gain |
+| --- | --- | --- |
+| `E1`, `E2` | E2, the bottom note: open plate, box | both +9.0 dB |
+| `H1`, `H2` | A2: open plate, box | both +7.5 dB |
+| `C1`, `C2` | C#3, on the box's resonance (the worst case): open plate, box | both +5.9 dB |
+| `I1`, `I2` | B3: open plate, box | both +9.6 dB |
+| `D1`, `D2` | The attack of A2: refined plate, and the same 5 % thicker | both +9.2 dB |
+| `G1`, `G2` | The phrase: open plate, box | both +3.0 dB |
+| `K1`, `K2`, `G4` | The approved Faust string: A2, B3, phrase | +2.3, +2.3, +0.4 dB |
+
+### Answers
+
+1. **Root causes.** Slow attack: a plate mode 7 cents from A2's third
+   harmonic, filling at its own decay rate; one note's property, and partly
+   the fragility of a 10-to-90 % figure. Weak fundamental: radiation without
+   a baffle (13.5 dB), the bridge at the edge (9.8 dB), and for A2 the same
+   mode lifting the third harmonic (18.8 dB). Lower level: genuine, 14 dB of
+   sound power (2.1 thickness, 5.4 bridge, 6.5 baffle), almost all of it
+   below 300 Hz; 0.4 dB when A-weighted.
+2. **Physically justified improvements.** An enclosed air volume, coupled
+   through the plate's mean motion: +9 dB of fundamental on average with no
+   new pitch error. Radiation loss on the box. Nothing else tried earns its
+   place.
+3. **What failed.** Moving the bridge inwards (pitch); a larger plate (the
+   boom returns); a 5 % thickness change (moves the problem to another
+   note); the box as it stands for evenness (a 140 Hz boom); the section 8
+   conjecture about beating.
+4. **Is a cavity necessary?** For a stronger fundamental and low register,
+   yes: nothing else supplied it without costing pitch. It is not sufficient
+   as built: its one sharp body resonance must be damped or broken up
+   before it is an improvement overall.
+5. **Ready for the builder?** The refined open plate: yes, as a plate in
+   open air, with one string and a fixed bridge. Its three oddities are now
+   explained and none is a fault of the model. The enclosed box: not yet.
+
+Nothing beyond this investigation has been started.

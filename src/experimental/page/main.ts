@@ -7,6 +7,7 @@ import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
 import { unbaffledCorner } from '../string/soundboardRefined.ts'
+import { airCavity, enclosedCorner } from '../string/airCavity.ts'
 import { INSTANT, RAMP, ZERO_CROSSING, type Call } from '../wasm/engine.ts'
 import { createPhysicsNode, type PhysicsNode } from '../wasm/host.ts'
 import { LAYOUTS, toCalls, tuneCalls, type Layout } from '../wasm/layouts.ts'
@@ -575,9 +576,9 @@ const GUITAR_SET: StringParams[] = ([[82.41, 0.0064], [110, 0.0036], [146.83, 0.
 // Phase 3C.2.1: the refined board is 8 mm with the bridge near one end, and its sound passes through unbaffled()'s filter.
 const REFINED_BOARD: PlateParams = { ...SPRUCE_PLATE, thickness: 0.008 }
 
-function stringInstrument(strings: StringParams[], modesPerString: number, boardLimit: number, rate: number, refined = false) {
+function stringInstrument(strings: StringParams[], modesPerString: number, boardLimit: number, rate: number, refined = false, boxed = false) {
   const points = strings.map((_, i): [number, number] => [refined ? 0.08 : 0.3, 0.44 + ((i - (strings.length - 1) / 2) * 0.01) / SOUNDBOARD.width])
-  const built = buildInstrument({ strings, loss: DEFAULT_LOSS, stringModes: modesPerString, pluckAt: 0.8, body: plateModes(refined ? REFINED_BOARD : SOUNDBOARD, points, rate, boardLimit), bridge: { stiffness: 1e6 }, output: { port: strings.length, gain: 4 } }, rate)
+  const built = buildInstrument({ strings, loss: DEFAULT_LOSS, stringModes: modesPerString, pluckAt: 0.8, body: plateModes(refined ? REFINED_BOARD : SOUNDBOARD, points, rate, boardLimit), bridge: { stiffness: 1e6 }, output: { port: strings.length, gain: 4 }, air: boxed ? airCavity(REFINED_BOARD, { depth: 0.15, holeRadius: 0.06 }) : undefined }, rate)
   // Every string plucked (a short push at its pluck point), in turn.
   const play = (i: number): Call[] => [['strike', built.strings[i % strings.length], STRING_PLUCK, 0.002, 0.002]]
   return { built, play }
@@ -585,20 +586,27 @@ function stringInstrument(strings: StringParams[], modesPerString: number, board
 
 async function stringBench() {
   await stop()
-  const cases: [string, StringParams[], number, number, boolean?][] = [
+  const cases: [string, StringParams[], number, number, boolean?, boolean?][] = [
+    ['ENCLOSED box (Phase 3C.2.2), one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true, true],
+    ['REFINED board, one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true],
     ['one string (100 modes), soundboard to 2 kHz', [GUITAR_SET[1]], 100, 2000],
     ['one string (100 modes), soundboard to 5 kHz', [GUITAR_SET[1]], 100, 5000],
-    ['REFINED board, one string (100 modes), to 5 kHz', [GUITAR_SET[1]], 100, 5000, true],
     ['REFINED board, six strings (100 modes each), to 5 kHz', GUITAR_SET, 100, 5000, true],
     ['three strings (100 modes each), soundboard to 2 kHz', GUITAR_SET.slice(1, 4), 100, 2000],
     ['six strings (60 modes each), soundboard to 2 kHz', GUITAR_SET, 60, 2000],
     ['six strings (100 modes each), soundboard to 5 kHz', GUITAR_SET, 100, 5000],
   ]
   const results: Record<string, unknown> = {}
-  for (const [name, strings, modesPerString, boardLimit, refined] of cases) {
+  for (const [name, strings, modesPerString, boardLimit, refined, boxed] of cases) {
     // The refined board's sound is its engine output through the no-baffle high-pass (a native filter node).
     const toOutput = (ctx: BaseAudioContext, node: AudioNode) => {
       if (!refined) return node
+      if (boxed) {
+        // enclosed(): a shelf from 1/2 to 1.
+        const w = 2 * Math.tan((Math.PI * enclosedCorner(REFINED_BOARD.length * REFINED_BOARD.width)) / ctx.sampleRate)
+        const [zero, pole] = [w / Math.SQRT2, w * Math.SQRT2]
+        return node.connect(new IIRFilterNode(ctx, { feedforward: [(2 + zero) / (2 + pole), (zero - 2) / (2 + pole)], feedback: [1, (pole - 2) / (2 + pole)] }))
+      }
       const t = Math.tan((Math.PI * unbaffledCorner(REFINED_BOARD.length * REFINED_BOARD.width)) / ctx.sampleRate)
       const a = (1 - t) / (1 + t)
       return node.connect(new IIRFilterNode(ctx, { feedforward: [(1 + a) / 2, -(1 + a) / 2], feedback: [1, -a] }))
@@ -609,7 +617,7 @@ async function stringBench() {
     let peak = 0
     for (let runIndex = 0; runIndex < 4; runIndex++) {
       const ctx = new OfflineAudioContext(1, 10 * 48000, 48000)
-      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, 48000, refined)
+      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, 48000, refined, boxed)
       modes = built.modes.body + built.modes.strings.reduce((a, b) => a + b, 0)
       const physics = await createPhysicsNode(ctx, [...built.calls, ...strings.flatMap((_, i) => play(i))])
       toOutput(ctx, physics.node).connect(ctx.destination)
@@ -623,7 +631,7 @@ async function stringBench() {
     const live: Record<string, unknown> = {}
     for (const sink of ['default device', 'no device'] as const) {
       const ctx = new AudioContext({ latencyHint: 'interactive', ...(sink === 'no device' ? { sinkId: { type: 'none' } } : {}) } as AudioContextOptions)
-      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, ctx.sampleRate, refined)
+      const { built, play } = stringInstrument(strings, modesPerString, boardLimit, ctx.sampleRate, refined, boxed)
       const physics = await createPhysicsNode(ctx, built.calls, { measure: true })
       toOutput(ctx, physics.node).connect(new GainNode(ctx, { gain: 0.3 })).connect(ctx.destination)
       await ctx.resume()
