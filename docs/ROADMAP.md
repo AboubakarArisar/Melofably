@@ -134,6 +134,12 @@ on them, and one builder example heard through it: the hybrid with a
 listener a metre away. Every earlier instrument plays the samples it played
 on the previous engine. See [RADIATOR.md](RADIATOR.md).
 
+Phase 3D.5 (research, awaiting review): why that example's pluck is 42 dB
+below its mallet stroke (the string keeps its energy, and what reaches the
+bar is in a mode that hardly radiates), and two candidates that are the same
+instrument with the string tied at the bar's end and the bar retuned. Nothing
+is in the builder. See [HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

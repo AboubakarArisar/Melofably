@@ -5,6 +5,7 @@ import { EXAMPLES, RADIATION_EXAMPLES, STRING_EXAMPLES } from '../../builder/exa
 import { setConnection } from '../../builder/graph.ts'
 import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
 import { radiationWeights } from '../radiation/barRadiation.ts'
+import { CANDIDATES, design } from '../radiation/hybridCandidates.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -775,10 +776,14 @@ async function integratedRadiated() {
  * Reports the time spent in process(), the longest single block, blocks of 2 ms or more (a block lasts
  * 2.67 ms at 48 kHz), blocks made against blocks due, the output device's dropouts, faults and memory.
  */
-async function radiatorBench(seconds = 10) {
+async function radiatorBench(seconds = 10, candidates = false) {
   await stop()
   const results: Record<string, unknown> = {}
-  for (const [name, make] of [['approved hybrid, velocity output', STRING_EXAMPLES[1].make], ['hybrid with listener, 16-point radiator', RADIATION_EXAMPLES[0].make]] as const) {
+  // Phase 3D.5: with `candidates`, the research candidates instead (the same radiator, other bars).
+  const cases = candidates
+    ? ([['experimental example', () => design()], ['candidate: end-tied', () => design(CANDIDATES.endTied)], ['candidate: end-tied and tuned', () => design(CANDIDATES.tuned)]] as const)
+    : ([['approved hybrid, velocity output', STRING_EXAMPLES[1].make], ['hybrid with listener, 16-point radiator', RADIATION_EXAMPLES[0].make]] as const)
+  for (const [name, make] of cases) {
     for (const editing of [false, true]) {
       const ctx = new AudioContext({ latencyHint: 'interactive' })
       const graph = setConnection(make(), make().connections.find((c) => c.type !== 'strike')!.id, { type: 'springDamper', damping: 1 })
@@ -820,7 +825,7 @@ async function radiatorBench(seconds = 10) {
       }
       physics.dispose()
       await ctx.close()
-      el.results.textContent = `radiator benchmark... ${Object.keys(results).length} of 4 done`
+      el.results.textContent = `radiator benchmark... ${Object.keys(results).length} of ${2 * cases.length} done`
     }
   }
   return { userAgent: navigator.userAgent, hidden: document.hidden, results }

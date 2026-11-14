@@ -377,3 +377,7 @@ Open `/builder.html`, choose "A string tied to a metal bar, heard as sound
 pressure at 1 m" under Load an example, Start audio, Play instrument. Select
 the listener and Remove it to hear the approved hybrid again; Undo brings it
 back.
+
+## 10. What followed (Phase 3D.5)
+
+The 42 dB between this example's pluck and its stroke was measured along the whole chain and explained, and two research candidates were found that raise the pluck by 14 and 25 dB by moving where the string is tied and retuning the bar. See [HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md). This example and the radiator are unchanged.

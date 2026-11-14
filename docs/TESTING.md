@@ -96,3 +96,7 @@ The same configuration. The suite is 293 tests in 19 files. The runs made are re
 ## Phase 3D.4
 
 The same configuration. The suite is 315 tests in 20 files. `tests/radiator.test.ts` runs the earlier examples on the engine binary of Phase 3D.3 as well, kept at `tests/fixtures/engine-phase-3d3.wasm`: do not regenerate that file. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
+
+## Phase 3D.5
+
+The same configuration. The suite is 330 tests in 21 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
