@@ -11,6 +11,8 @@ export interface EngineReport {
   faults: number
   worstIterations: number
   memoryBytes: number
+  /** Energy the whole system holds, J. */
+  energy: number
 }
 
 export interface PhysicsNode {

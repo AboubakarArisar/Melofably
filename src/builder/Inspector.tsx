@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Selection } from './Canvas.tsx'
 import { BRIDGE_STIFFNESS, cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isBody, isResonator, isString, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
-import { describeBar, describeBody, describeString } from './translate.ts'
+import { describeBar, describeBody, describeFinger, describeString } from './translate.ts'
 
 interface Props {
   graph: Graph
@@ -31,6 +31,17 @@ function Field({ spec, value, onChange, restarts = !spec.live }: { spec: ParamSp
   const [draft, setDraft] = useState<string | null>(null)
   const entry = draft === null ? null : parseEntry(draft, spec)
   const error = entry && 'error' in entry ? entry.error : null
+  // A switch: on or off, with nothing to slide or type.
+  if (spec.toggle)
+    return (
+      <div className="mb-3">
+        <label className="flex items-center gap-2 text-sm text-neutral-200">
+          <input type="checkbox" checked={value === 1} onChange={(e) => onChange(e.target.checked ? 1 : 0)} className="h-4 w-4 accent-sky-400" />
+          {spec.label}
+        </label>
+        <p className="text-xs text-neutral-400">{spec.hint}</p>
+      </div>
+    )
   const log = spec.log && spec.min > 0
   const toSlider = (v: number) => (log ? (1000 * Math.log(v / spec.min)) / Math.log(spec.max / spec.min) : v)
   const fromSlider = (s: number) => (log ? Number((spec.min * (spec.max / spec.min) ** (s / 1000)).toPrecision(3)) : s)
@@ -198,9 +209,11 @@ function StringFacts({ item, sampleRate }: { item: Component; sampleRate: number
         <Fact name="Wave impedance">{`${format(s.impedance)} kg/s`}</Fact>
         <Fact name="Overtones used">{`${s.modes}, up to ${format(s.highestMode / 1000)} kHz`}</Fact>
         <Fact name="Lowest overtone rings for">{s.ringSeconds ? `${format(s.ringSeconds)} s` : 'not playable'}</Fact>
+        <Fact name="A finger's touch">{`a damper of ${format(describeFinger(item).damping)} N s/m`}</Fact>
+        <Fact name="Pulled aside 1 mm takes">{`${format(0.001 / describeFinger(item).displacementPerNewton)} N`}</Fact>
       </dl>
       <p className="mb-3 text-xs text-neutral-400">
-        The pitch is that of the string between two fixed ends. On the body it is within a few cents of this. A new pluck adds to whatever the string is already doing; it does not stop it first.
+        The pitch is that of the string between two fixed ends. On the body it is within a few cents of this. On the canvas: click the string to pluck it there; drag across it and let go to pull it aside and release it. Hold M (or the Hold to mute button) to rest a finger on it: the finger is a damper where the string is plucked, as strong as takes the most from the string (twice its wave impedance), so it cannot quiet an overtone that does not move there.
       </p>
     </>
   )

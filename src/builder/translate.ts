@@ -5,7 +5,7 @@ import { barModeFrequencies, barModeShape, woodDecayTime } from '../audio/engine
 import { barContactTime } from '../experimental/physics/bar.ts'
 import type { Mode } from '../experimental/physics/resonator.ts'
 import { STRING_PLUCK } from '../experimental/string/instrument.ts'
-import { bridgeSpring, buildStringBody, describeBody, modesOfString, pluckCall, radiation, STRING_DENSITY, stringPitch, type StringBody } from '../experimental/string/stringBody.ts'
+import { bridgeSpring, buildPlayableStringBody, describeBody, fingerDamping, modesOfString, pluckCall, pullCalls, pullForce, radiation, releaseCalls, retriggerCalls, STRING_DENSITY, stringPitch, touchCall, type StringBody } from '../experimental/string/stringBody.ts'
 import { RAMP, type Call } from '../experimental/wasm/engine.ts'
 import { CAPACITY, isBody, isExciter, isResonator, isString, TYPES, validateGraph, type Component, type Graph, type Issue } from './graph.ts'
 
@@ -72,7 +72,7 @@ export interface Built {
    * The experimental string instrument, when the graph is one: the graph's identifiers, the engine's
    * resonator and port for plucking, its bridge connection, and how many string modes were built.
    */
-  stringBody?: { stringId: string; bodyId: string; string: number; pluckPort: number; bridge: number; joined: boolean; modes: number }
+  stringBody?: { stringId: string; bodyId: string; string: number; pluckPort: number; bridge: number; joined: boolean; modes: number; /** The finger's damper (Phase 3D.1). */ finger: number }
   /** What the output is: the bars' velocities (m/s) or, for a string on a body, sound pressure (Pa). */
   output: 'velocity' | 'pressure'
 }
@@ -172,10 +172,10 @@ function translateStringBody(graph: Graph, sampleRate: number): Built {
     return built
   }
   const joined = graph.connections.some((c) => c.type === 'bridge')
-  const system = buildStringBody(stringBodyOf(string, joined), sampleRate)
+  const system = buildPlayableStringBody(stringBodyOf(string, joined), sampleRate)
   const r = radiation(sampleRate)
   built.calls = [...system.calls, ['radiate', r.perSample, r.b0, r.b1, r.a1, PRESSURE_FULL_SCALE]]
-  built.stringBody = { stringId: string.id, bodyId: body.id, string: system.string, pluckPort: system.pluckPort, bridge: system.bridge, joined, modes: system.modes.strings[0] }
+  built.stringBody = { stringId: string.id, bodyId: body.id, string: system.string, pluckPort: system.pluckPort, bridge: system.bridge, joined, modes: system.modes.strings[0], finger: system.finger }
   if (!joined) built.notes.push({ id: string.id, message: `${string.name} is not standing on ${body.name}: plucking moves the string, but nothing pushes the body, so there is nothing to hear. Drag from the string's dot to the body to add the bridge.` })
   return built
 }
@@ -249,7 +249,10 @@ export function barCalls(graph: Graph, built: Built, barId: string): Call[] {
 export function instrumentCalls(graph: Graph, built: Built): Call[] {
   if (built.stringBody) {
     const string = graph.components.find((c) => c.id === built.stringBody!.stringId)
-    return string ? [pluckCall(built.stringBody, string.params.pluckStrength)] : []
+    if (!string) return []
+    const { pluckStrength, pluckSoftness, retrigger } = string.params
+    // Touch first, or add to what is there: the string's own property says which.
+    return retrigger ? retriggerCalls(built.stringBody, string.params as { tension: number }, pluckStrength, pluckSoftness) : [pluckCall(built.stringBody, pluckStrength, pluckSoftness)]
   }
   const exciters = Object.keys(built.targets)
   if (exciters.length) return exciters.flatMap((id) => exciterCalls(graph, built, id))
@@ -290,3 +293,36 @@ export function describeString(string: Component, sampleRate: number) {
 }
 
 export { describeBody }
+// ---- Playing gestures on the string (Phase 3D.1) ------------------------------------------------------
+
+const playable = (graph: Graph, built: Built) => {
+  const string = built.stringBody && graph.components.find((c) => c.id === built.stringBody!.stringId)
+  return string ? { part: built.stringBody!, string, model: stringBodyOf(string, built.stringBody!.joined) } : null
+}
+
+/** A finger comes to rest on the string and stays (`on`), or leaves it. Empty if there is no string. */
+export function touchCalls(graph: Graph, built: Built, on: boolean): Call[] {
+  const p = playable(graph, built)
+  return p ? [touchCall(p.part, p.model, on)] : []
+}
+
+/**
+ * A finger holds the string `displacement` metres aside at its pluck point.
+ * Returns the force that takes, capped at the largest pluck strength allowed.
+ */
+export function pullCallsFor(graph: Graph, built: Built, displacement: number): { calls: Call[]; force: number } {
+  const p = playable(graph, built)
+  if (!p) return { calls: [], force: 0 }
+  const most = TYPES[p.string.type].params.find((spec) => spec.key === 'pluckStrength')!.max
+  const force = Math.sign(displacement) * Math.min(most, pullForce(p.model, p.model.pluckAt, Math.abs(displacement)))
+  return { calls: pullCalls(p.part, p.model, force), force }
+}
+
+/** The finger lets go of the string. */
+export function releaseCallsFor(graph: Graph, built: Built): Call[] {
+  const p = playable(graph, built)
+  return p ? releaseCalls(p.part, p.string.params.pluckSoftness) : []
+}
+
+/** What a finger's touch is, for display. */
+export const describeFinger = (string: Component) => ({ damping: fingerDamping({ tension: string.params.tension }), displacementPerNewton: 1 / pullForce(stringBodyOf(string, true), string.params.pluckPosition, 1) })

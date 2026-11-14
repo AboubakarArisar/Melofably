@@ -120,3 +120,32 @@ export function freeSpot(graph: Graph, exciter: boolean, size = { w: 190, h: 70 
   }
   return { x: 150, y: rows[0] }
 }
+
+// ---- Playing a string on the canvas (Phase 3D.1) --------------------------------------------------------
+
+/** The left end of a drawn string, px: the part it is picked up and moved by. The rest is played. */
+export const STRING_GRIP = 26
+/**
+ * Metres the real string is pulled aside for each canvas unit the pointer is
+ * dragged across it: a quarter of a millimetre. Along the string a unit is
+ * about 2.5 mm, so the sideways movement is drawn about ten times larger than
+ * life; a real pluck moves a string a few millimetres.
+ */
+export const PULL_SCALE = 0.00025
+/** A press that moves across the string by less than this is a click, px. */
+export const PULL_STARTS = 4
+/** The farthest the string is drawn pulled aside, px (10 mm). */
+export const PULL_LIMIT = 40
+
+/**
+ * Where along a string a point is, as a fraction of its length from the fixed
+ * end, if the point is on the part that is played; null if it is not on the
+ * string, or is on its grip. Kept within the range of the Pluck position property.
+ */
+export function playPoint(c: Component, p: Point): number | null {
+  if (!isString(c)) return null
+  const { w } = rectSize(c)!
+  const left = c.x - w / 2
+  if (p.x < left + STRING_GRIP || p.x > left + w || Math.abs(p.y - c.y) > 14) return null
+  return Math.min(0.95, Math.max(0.05, Number(((p.x - left) / w).toFixed(2))))
+}

@@ -7,23 +7,48 @@
 // its memory through a view created once. Everything else (building the
 // system, edits, strikes) arrives as messages and runs between blocks.
 //
-// Two things the engine does not do itself are done here, on request, by
-// calls that are addressed to this processor rather than to the engine
-// (Phase 3C.3; both are off until asked for, and a 'reset' turns them off):
+// Some things the engine does not do itself are done here, on request, by
+// calls that are addressed to this processor rather than to the engine. All
+// are off until asked for, and a 'reset' turns them off: with none in use the
+// engine fills each block in one call, exactly as before they existed.
 //
-//   ['pluck', resonator, port, force, cutoff, seconds]
+// Phase 3C.3:
+//
+//   ['pluck', resonator, port, force, cutoff, seconds, delay = 0]
 //     A plucking force on one port: an impulse rounded by two one-pole
 //     lowpasses at `cutoff` Hz, then integrated with a 20 Hz leak, so that it
 //     steps to `force` newtons and relaxes; applied for `seconds`. The same
 //     arithmetic as pluckForce() in src/experimental/string/modalString.ts.
-//     While a pluck lasts the engine is stepped one sample at a time.
+//     It starts `delay` seconds after it is asked for.
 //
 //   ['radiate', perSample, b0, b1, a1, fullScale]
 //     Turns the engine's output into sound pressure: p = perSample (x[n] -
 //     x[n-1]), then y = b0 p[n] + b1 p[n-1] - a1 y[n-1]; the node's output is
 //     y / fullScale. See radiation() in src/experimental/string/stringBody.ts.
+//
+// Phase 3D.1 (playing):
+//
+//   ['touch', connection, damping, attack, hold, release]
+//     A finger on the string: the damper `connection` is taken from whatever
+//     strength it has to `damping` (N s/m) over `attack` seconds, kept there
+//     for `hold` seconds, then taken to nothing over `release` seconds. A
+//     negative `hold` keeps it until the next 'touch'. Only the engine's own
+//     damper is changed (setDamping): energy leaves through it, and the
+//     output is never altered.
+//
+//   ['hold', resonator, port, force, cutoff]
+//     A finger pulling the string aside: a force on one port that follows
+//     `force` (N) through two one-pole lowpasses at `cutoff` Hz. Asked again
+//     with another force it moves there; asked with 0 and a high cutoff it
+//     lets go, which is a pluck.
+//
+// While any force is being applied the engine is stepped one sample at a
+// time; while a touch is changing, sixteen at a time.
 
 /* global AudioWorkletProcessor, registerProcessor */
+
+const PLUCK = 9 // numbers kept per pluck
+const PLUCKS = 8 * PLUCK
 
 class PhysicsProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -33,13 +58,20 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     this.measure = measure === true
     // [blocks, milliseconds spent in process(), blocks that took 2 ms or more]
     this.stats = new Float64Array(3)
-    // Plucks in progress, 8 numbers each: samples left, resonator, port, force, lowpass pole, and the
-    // three numbers the force's filters remember. Room for 8 at once; a ninth takes over the oldest.
-    this.plucks = new Float64Array(64)
+    // Plucks, 9 numbers each: samples left, resonator, port, force, lowpass pole, the three numbers the
+    // force's filters remember, and samples still to wait before it starts. Room for 8 at once; a ninth
+    // takes over the oldest.
+    this.plucks = new Float64Array(PLUCKS)
     this.livePlucks = 0
     this.rate = 48000
     // Radiation: [on, perSample, b0, b1, a1, 1 / fullScale, previous x, previous p, previous y].
     this.rad = new Float64Array(9)
+    // Touch: [stage (0 off, 1 arriving, 2 resting, 3 leaving), connection, strength now, strength it started
+    // this stage from, strength to rest at, samples into this stage, and the lengths in samples of
+    // arriving, resting (negative: until told) and leaving].
+    this.touch = new Float64Array(9)
+    // Hold: [on, resonator, port, force wanted, lowpass pole, and the two numbers its filters remember].
+    this.hold = new Float64Array(7)
     this.engine = null
     try {
       this.engine = new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports
@@ -68,6 +100,8 @@ class PhysicsProcessor extends AudioWorkletProcessor {
           faults: this.engine.faults(),
           worstIterations: this.engine.worstIterations(),
           memoryBytes: this.engine.memory.buffer.byteLength,
+          // Everything the system holds as motion and as stretch, J: what a player sees as "still ringing".
+          energy: this.engine.energy(),
         })
       }
     }
@@ -84,12 +118,32 @@ class PhysicsProcessor extends AudioWorkletProcessor {
         this.rad.set([1, args[0], args[1], args[2], args[3], 1 / args[4]])
         continue
       }
+      if (name === 'touch') {
+        const t = this.touch
+        const samples = (seconds) => Math.max(0, Math.round(seconds * this.rate))
+        // From wherever the finger is now (nothing, if it was not on this connection).
+        const now = t[0] !== 0 && t[1] === args[0] ? t[2] : 0
+        t.set([1, args[0], now, now, args[1], 0, samples(args[2]), args[3] < 0 ? -1 : samples(args[3]), samples(args[4])])
+        continue
+      }
+      if (name === 'hold') {
+        const h = this.hold
+        const pole = Math.exp((-2 * Math.PI * Math.min(args[3], 0.45 * this.rate)) / this.rate)
+        // The same finger on the same point keeps what its filters remember; a new one starts from nothing.
+        if (h[0] === 1 && h[1] === args[0] && h[2] === args[1]) {
+          h[3] = args[2]
+          h[4] = pole
+        } else h.set([1, args[0], args[1], args[2], pole, 0, 0])
+        continue
+      }
       if (name === 'reset') {
-        // A new system: nothing of the old one's plucks or radiation carries over.
+        // A new system: nothing of the old one's plucks, fingers or radiation carries over.
         this.rate = args[0]
         this.plucks.fill(0)
         this.livePlucks = 0
         this.rad.fill(0)
+        this.touch.fill(0)
+        this.hold.fill(0)
       }
       const fn = this.engine[name]
       if (typeof fn !== 'function') throw new Error(`unknown engine call "${name}"`)
@@ -97,10 +151,10 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     }
   }
 
-  pluck([resonator, port, force, cutoff, seconds]) {
+  pluck([resonator, port, force, cutoff, seconds, delay = 0]) {
     const p = this.plucks
     let slot = 0
-    for (let s = 0; s < 64; s += 8) if (p[s] < p[slot]) slot = s
+    for (let s = 0; s < PLUCKS; s += PLUCK) if (p[s] < p[slot]) slot = s
     if (p[slot] === 0) this.livePlucks++
     p[slot] = Math.max(1, Math.round(seconds * this.rate))
     p[slot + 1] = resonator
@@ -110,6 +164,23 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     p[slot + 5] = 1 - p[slot + 4] // the impulse, through the first lowpass
     p[slot + 6] = 0
     p[slot + 7] = 0
+    p[slot + 8] = Math.max(0, Math.round(delay * this.rate))
+  }
+
+  /** Sets the finger's damper for the next `n` samples and moves its stages on. */
+  touching(n) {
+    const t = this.touch
+    const length = t[0] === 1 ? t[6] : t[0] === 2 ? t[7] : t[8]
+    if (t[0] === 1) t[2] = length === 0 ? t[4] : t[3] + ((t[4] - t[3]) * Math.min(t[5] + n, length)) / length
+    else if (t[0] === 3) t[2] = length === 0 ? 0 : t[3] * (1 - Math.min(t[5] + n, length) / length)
+    this.engine.setDamping(t[1], t[2])
+    t[5] += n
+    if (length >= 0 && t[5] >= length) {
+      // On to the next stage; after leaving, the finger is off.
+      t[0] = t[0] === 3 ? 0 : t[0] + 1
+      t[3] = t[2]
+      t[5] = 0
+    }
   }
 
   process(_inputs, outputs) {
@@ -122,12 +193,35 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     // summed over many blocks the differences average to the true time.
     const started = this.measure ? Date.now() : 0
     const samples = this.samples
-    if (this.livePlucks > 0) {
-      const p = this.plucks
+    const p = this.plucks
+    const t = this.touch
+    const h = this.hold
+    if (this.livePlucks === 0 && t[0] === 0 && h[0] === 0) {
+      engine.process(count)
+      for (let i = 0; i < count; i++) first[i] = samples[i]
+    } else {
       const leak = Math.exp((-2 * Math.PI * 20) / this.rate)
-      for (let i = 0; i < count; i++) {
-        for (let s = 0; s < 64; s += 8) {
+      let i = 0
+      while (i < count) {
+        // How many samples can be made in one go: one while a force is applied, up to sixteen while the
+        // finger's damper is changing, and never past the moment a waiting pluck or the finger's next stage begins.
+        let n = count - i
+        let forcing = h[0] === 1
+        for (let s = 0; s < PLUCKS; s += PLUCK) {
           if (p[s] === 0) continue
+          if (p[s + 8] === 0) forcing = true
+          else if (p[s + 8] < n) n = p[s + 8]
+        }
+        if (t[0] === 1 || t[0] === 3) n = Math.min(n, 16)
+        else if (t[0] === 2 && t[7] >= 0) n = Math.min(n, Math.max(1, t[7] - t[5]))
+        if (forcing) n = 1
+        if (t[0] !== 0) this.touching(n)
+        for (let s = 0; s < PLUCKS; s += PLUCK) {
+          if (p[s] === 0) continue
+          if (p[s + 8] > 0) {
+            p[s + 8] -= n
+            continue
+          }
           const pole = p[s + 4]
           p[s + 6] = (1 - pole) * p[s + 5] + pole * p[s + 6]
           p[s + 7] = p[s + 6] + leak * p[s + 7]
@@ -135,12 +229,17 @@ class PhysicsProcessor extends AudioWorkletProcessor {
           p[s + 5] *= pole
           if (--p[s] === 0) this.livePlucks--
         }
-        engine.process(1)
-        first[i] = samples[0]
+        if (h[0] === 1) {
+          h[5] += (1 - h[4]) * (h[3] - h[5])
+          h[6] += (1 - h[4]) * (h[5] - h[6])
+          engine.applyForce(h[1], h[2], h[6])
+          // Let go, and the force has gone: the finger is off.
+          if (h[3] === 0 && Math.abs(h[5]) < 1e-12 && Math.abs(h[6]) < 1e-12) h[0] = 0
+        }
+        engine.process(n)
+        for (let j = 0; j < n; j++) first[i + j] = samples[j]
+        i += n
       }
-    } else {
-      engine.process(count)
-      for (let i = 0; i < count; i++) first[i] = samples[i]
     }
     const rad = this.rad
     if (rad[0] === 1) {

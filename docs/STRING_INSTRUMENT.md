@@ -1,4 +1,9 @@
-# The string-and-body instrument in the builder (Phase 3C.3)
+# The string-and-body instrument in the builder (Phases 3C.3 and 3D.1)
+
+Sections 1 to 8 describe the instrument as approved in Phase 3C.3. Section 9
+describes how it is played since Phase 3D.1: retriggered and additive
+plucks, a finger that touches and mutes, and a string pulled aside and
+released. Where section 9 changes something said earlier, it says so.
 
 **Status: experimental, limited.** One string, one body, one bridge. The four
 approved Faust instruments, their reference recordings, the WebAssembly
@@ -89,7 +94,11 @@ The string is 3.6 g/m (the A2 string of the prototypes). The ranges keep all
 its pitch runs from 57 Hz to 183 Hz. Values outside a range are refused,
 not clamped.
 
-**A new pluck adds to the vibration already there; it does not reset it.**
+*(Since Phase 3D.1 the string also has Pluck softness and Touch before
+plucking: section 9.)*
+
+**A new pluck adds to the vibration already there; it does not reset it**
+(unless Touch before plucking is on: section 9).
 The system is linear, so two plucks are exactly the sum of each alone
 (test). A real finger would damp the string as it touches it; this one does
 not. Up to eight plucks' forces can overlap (each lasts 0.2 s); a ninth
@@ -230,3 +239,240 @@ Open `http://localhost:5173/builder.html`.
    the engine's load, late blocks, and output-device dropouts.
 6. Try to add a second string or a bar: the palette explains why it cannot.
 7. Load a bar example and come back: both behave as before.
+
+## 9. Playing it (Phase 3D.1)
+
+Nothing in sections 1 to 8 was taken away, and **the default sound is the
+approved one**: with no new gesture in use the instrument produces the
+Phase 3C.3 samples (largest difference 7e-20 Pa on a peak of 0.102 Pa; the
+browser's offline render gives the same 17 digits as before). The engine is
+still unchanged. Not heard: every statement here is a measurement.
+
+| Piece | Where |
+| --- | --- |
+| The finger, retrigger, pull and release as engine and processor calls | `src/experimental/string/stringBody.ts` (from `buildPlayableStringBody`) |
+| Touch envelope, delayed pluck, held force in the AudioWorklet | `src/experimental/wasm/processor.js` |
+| Session gestures: `touch`, `pull`, `release` | `src/builder/session.ts`, `translate.ts` |
+| Clicking, pulling, the ringing haze, Hold to mute | `src/builder/shapes.ts`, `Canvas.tsx`, `Builder.tsx`, `Inspector.tsx` |
+| Tests (24) | `tests/string-playing.test.ts` |
+| Listening renders | `analysis/render-string-playing.ts` (`npm run render:string-playing`) |
+
+### 9.1 The finger
+
+One thing was added to the physical system: **a damper between the string's
+pluck point and something that does not move**. It has no strength until a
+finger is on the string. The finger that plucks is the finger that touches,
+so it sits where the string is plucked and moves with the Pluck position.
+
+- **Why a damper.** A soft fingertip resting on a string resists its motion
+  and turns that motion into heat. A damper is the one element that can only
+  take energy: its force always opposes the motion. Nothing is done to the
+  sound; the string itself stops.
+- **How strong.** Twice the string's wave impedance, 2 sqrt(T mu): 1.03 N s/m
+  at 73.5 N. A damper at one point of a string takes the most from the waves
+  passing it when it matches the two halves of string it sits between. Weaker,
+  the waves pass it; stronger, they bounce off it as from a fret and the two
+  halves ring on. Measured, time for the string to lose 30 dB: 45 ms at half
+  this strength, **30 ms at this strength**, 66 ms at four times it. It
+  follows the tension.
+- **What it cannot do.** It cannot quiet an overtone that does not move
+  where it rests. Resting on the middle of a ringing string it removes the
+  fundamental altogether and leaves the octave (31 dB down, and more than
+  100 dB above the fundamental): a harmonic, as on a real string. Because the
+  finger is where the string is plucked, the overtones it cannot reach are
+  also the ones that pluck does not excite.
+- **It arrives and leaves gradually**, in 2 ms and 4 ms, moved by the
+  processor in steps of at most sixteen samples (`['touch', ...]`).
+
+### 9.2 The three ways to excite the string
+
+| | What happens physically | Sound |
+| --- | --- | --- |
+| **Additive pluck** (Touch before plucking off: the default, and the approved behaviour) | The approved plucking force is added to whatever the string is doing. | A second note 0.5 s after the first differs from a first note by -11 dB in its first 100 ms; notes 8 a second range from 0.088 to 0.103 Pa, with 1.2 mJ still in the string as each is plucked. |
+| **Retrigger** (Touch before plucking on) | The finger lands on the string (2 ms), rests (26 ms), and plucks as it leaves (2 ms): the approved pluck, 30 ms after it is asked for. | The old note is 28 to 33 dB down when the new one starts. A second note matches a first note to -45 / -38 / -29 / -27 dB at 1 / 0.5 / 0.25 / 0.15 s after it. 24 notes at 8 a second: every peak 0.1017 Pa. |
+| **Pull and release** (drag across the string and let go) | The finger takes hold (it touches, so the string is damped), pulls the string aside with a force that follows the hand, and lets go: the force is removed as fast as the Pluck softness allows. The engine's string really is displaced while held. | Held 2.83 mm aside with 2.00 N it stores 2.82 mJ (the work of pulling it, F d / 2 = 2.83 mJ) and makes 0.0008 Pa. Released, its harmonics are within 0.13 dB of the approved 2 N pluck's and its peak is 0.1007 Pa against 0.1020. |
+
+The force of a pull is the string's own: tension times displacement times
+(1/a + 1/b), where a and b are the lengths of string either side of the
+finger. At the loaded settings 1 mm takes 0.71 N. It is capped at the
+largest Pluck strength (8 N).
+
+**Why pull-and-release sounds like the approved pluck.** The approved pluck
+is a force that steps up and dies away in 8 ms. Letting go of a held string
+is a force that steps down and stays down. For everything above about 20 Hz
+those are the same event, which is why the two agree to a tenth of a
+decibel: the approved excitation already was a release.
+
+**Retrigger does not reset anything.** The engine's state is never set by
+hand: the old note leaves through the finger's damper, in the 30 ms the
+finger rests. That is also its cost: a retriggered note sounds 30 ms after
+it is asked for. No click: the finger arriving makes no larger jump between
+samples than the string's own motion just before (0.8 to 1.0 times it on a
+ringing string; 1.9 times on one that has nearly died away, where both are
+small), and at most 0.4 of the jump a pluck itself makes.
+
+### 9.3 Muting
+
+Hold **Hold to mute** (or the M key): the finger rests on the string until
+released.
+
+| | Measured |
+| --- | --- |
+| Energy 0.1 s after the finger lands | -40.2 dB |
+| Energy after 0.5 s | -69.1 dB; sound 0.0226 Pa to 0.000003 Pa |
+| Energy while touching | never rises, in any block |
+| A touch of 12 ms, then released | the note is quieter, not gone, and rings on at its own rate; no click as the finger lifts |
+| Plucked while the finger rests on it | a short note: it speaks, and is a thousand times weaker 0.2 s later |
+| 300 touches at random, strengths from 0.01 to 1000 N s/m, arriving and leaving in 0 to 20 ms | energy never rises; no fault; Newton iterations at most 3 |
+
+### 9.4 Pluck controls
+
+| Property | Range | | What it is |
+| --- | --- | --- | --- |
+| Pluck strength | 0.2 to 8 N | live | unchanged |
+| Pluck position | 0.05 to 0.95 | live | unchanged; clicking the string sets it to where it was clicked |
+| **Pluck softness** | 0 to 1 | live | How the finger lets go: the time the plucking force takes to arrive. It is the approved string's own softness, which was fixed at 0.3; 0.3 gives the approved samples exactly. Share of the sound above 2 kHz: -20.3 dB at 0, -22.8 dB at 0.3, -41.5 dB at 1. |
+| **Touch before plucking** | off / on | live | Additive (off) or retrigger (on). A switch, saved with the instrument. |
+
+No pluck duration was added: the approved pluck's length is already set by
+its 20 Hz relaxation, and a pulled string is held for as long as the player
+holds it.
+
+### 9.5 The playing interface
+
+- **Click the string**: it is plucked there, with the Pluck strength. The
+  Pluck position follows.
+- **Drag across the string and let go**: it is pulled aside and released.
+  A quarter of a millimetre per canvas unit, at most 10 mm; the label by the
+  finger shows the displacement and the force. The sideways movement is
+  drawn about ten times larger than life, and the legend says so.
+- **Drag the grey block at its left end** to move the string on the canvas.
+- **The haze around the string** shows that the instrument still holds
+  energy (the engine's own figure, read four times a second). It is not the
+  string's shape, which moves far too fast to draw, and it is not shown
+  while the string is held.
+- **Hold to mute**, and the M key.
+- Play instrument, Space and the inspector's button work as before.
+
+What the interface shows is what the engine does: a click is the approved
+pluck; a drag really displaces the engine's string; the haze is the engine's
+energy; the finger is a damper in the engine.
+
+### 9.6 Numerical validation against the approved sound
+
+| | Phase 3C.3 reference | Now, nothing new in use | Pulled 2.83 mm and released |
+| --- | --- | --- | --- |
+| Pitch | 109.879 Hz (-0.48 cents) | the same | the same |
+| Peak at 1 m | 0.1020 Pa, 71.1 dB SPL | the same | 0.1007 Pa, 71.0 dB SPL |
+| Loudest at | 17 ms | the same | 17 ms |
+| Decay of the fundamental (T60) | 3.569 s | the same | 3.569 s |
+| Harmonics 2 / 3 / 4 / 6 against the fundamental | -3.9 / -15.0 / -23.8 / -3.5 dB | the same | -4.0 / -15.1 / -23.9 / -3.6 dB |
+| Largest sample difference from the reference | | 6.7e-20 Pa | |
+
+The 18 tests of Phase 3C.3 pass. One of them was changed, in one place: it
+asserted that the builder's list of engine calls was the prototype's exactly;
+it now asserts that it is the prototype's with one call added, the finger's
+damper, and that the reference build is still the prototype's exactly. The
+test that compares the sound with the prototype (-143 dB) is untouched.
+
+Also tested (24 tests): 1000 random plucks, touches, pulls and edits in 10 s
+(no fault, no rebuild, loudest 1.26 Pa under the 2 Pa ceiling, silent
+afterwards with energy never rising); undo and redo of the new properties;
+an instrument saved in Phase 3C.3 loads and gets the approved values; a
+half-on switch is refused; switching to each bar example with a finger still
+on the string gives the bars bit for bit as before; gestures give the same
+sound in blocks of 16, 100 and 128 samples; a rebuild forgets fingers and
+held forces.
+
+### 9.7 Browser performance
+
+Chromium 156 AudioWorklet at 48 kHz, the builder page live, **mains power,
+machine otherwise lightly loaded (20 to 35 %)**. So these are not comparable
+with section 5, which was measured on battery under heavier load.
+
+| What was done for 10 s | Engine CPU, of one core | Blocks of 2 ms or more | Blocks processed / expected | Faults | Device dropouts |
+| --- | --- | --- | --- | --- | --- |
+| Nothing (the finger's damper present, off) | 5.0 % | 0 | 3060 / 3057 | 0 | 0 |
+| Additive plucks, 6 a second | 7.1 % | 0 | 3783 / 3782 | 0 | 0 |
+| Retriggered plucks, 4 a second | 6.5 % | 0 | 3885 / 3912 | 0 | 0 |
+| Pluck, touch, release, 3 of each a second | 6.9 % | 0 | 3754 / 3756 | 0 | 0 |
+| Pulling: a new displacement 44 times a second, let go three times in two seconds | 6.4 % | 0 | 3753 / 3755 | 0 | 0 |
+| String held aside for 5 s (the engine stepped a sample at a time) | 6.9 % | 0 | 1962 / 1960 | 0 | 0 |
+
+- The finger's damper is one more connection on the string. In Node the same
+  note costs 6.1 % of a core with it against 5.7 % without (about a twelfth
+  more).
+- Applying a force costs the most: while a string is held or a pluck's force
+  lasts the engine is stepped one sample at a time, 6.9 % against 5.0 %.
+- Engine memory stayed at 3 145 728 bytes. The page's heap moved between 39
+  and 70 MB with no trend; one audio node and one context throughout.
+- The retrigger row counted 27 fewer blocks than the wall clock expected
+  (0.7 %); the two are read at slightly different moments and no slow block
+  or dropout was reported.
+
+### 9.8 Listening files
+
+`npm run render:string-playing` writes 13 files to `renders/string-playing/`,
+with `listening.json` (pascals and dB SPL at 1 m before any gain, and the
+gain) and `comparison.json`. Files in a pair share one gain.
+
+| Files | What | Peak at 1 m | Gain |
+| --- | --- | --- | --- |
+| `1a`, `1b` | The approved pluck: Phase 3C.3 reference, and the instrument now | 71.1 dB SPL both | +13.8 dB both |
+| `2`, `3` | Six slow notes then sixteen fast: retriggered, and additive | 71.2 / 72.1 | +12.8 dB both |
+| `4` | Finger damping: a note touched for 5, 15, 40 and 120 ms | 71.1 | +13.8 dB |
+| `5` | A note stopped by the finger; five plucks with the finger on; five with it off | 73.1 | +11.9 dB |
+| `6` | Pluck strength 0.5, 1, 2, 4, 8 N | 83.2 | +1.8 dB |
+| `7` | Pluck position 0.20 to 0.95 | 72.8 | +12.1 dB |
+| `8` | Pluck softness 0, 0.3, 0.7, 1 | 72.5 | +12.5 dB |
+| `9a`, `9b` | Pulled 2.83 mm and released; the approved 2 N pluck | 71.0 / 71.1 | +13.8 dB both |
+| `10` | A finger on the middle of a ringing string leaves its octave | 68.9 | +16.1 dB |
+| `11` | A short performance on one string: retriggered notes growing in strength, muted notes, a bend by tension, an additive roll stopped by the finger, a harmonic | 78.3 | +6.6 dB |
+
+### 9.9 Limitations
+
+1. **Retrigger is 30 ms late**, by design: that is how long the finger
+   rests. A shorter rest leaves more of the old note.
+2. **One finger, at the pluck point.** It cannot damp an overtone with a
+   still point there. There is no separate muting hand (a palm by the
+   bridge).
+3. **The finger is a pure damper**: no mass, no stiffness, no width. A real
+   fingertip also detunes the string slightly and, pressed hard, stops it
+   like a fret. Pressing hard is not offered.
+4. **Retuning a held string leaves a small still stress.** The engine's live
+   retune keeps each part's stored energy; done while a finger holds the
+   string aside, it leaves the parts pressing on each other after the finger
+   goes. It moves nothing and makes no sound, was 4.7 microjoules after a
+   thousand random gestures (a pluck is about 300), and a rebuild clears it.
+5. **The haze updates four times a second** and shows total energy, not the
+   string's motion.
+6. **The pull is drawn ten times larger than life** across the string.
+7. **Touch needs a pointer or the keyboard**: there is no pressure
+   sensitivity; the finger is either on or off.
+8. The limitations of section 7 remain, except that item 5 (the pluck does
+   not damp the string) is now a choice.
+
+### 9.10 Trying each interaction
+
+Load **A string on a damped box body**, press **Start audio**.
+
+1. **Approved pluck.** Press Play instrument or Space.
+2. **Click to pluck.** Click the string in different places: the orange
+   marker follows, and the tone changes with the place.
+3. **Additive.** With Touch before plucking off, press Space quickly several
+   times: the notes pile up.
+4. **Retrigger.** Select the string, switch **Touch before plucking** on,
+   and press Space the same way: each note starts clean.
+5. **Mute.** Pluck, then hold **Hold to mute** or the M key. Tap it briefly
+   to take only part of the note away.
+6. **Muted notes.** Hold M and pluck.
+7. **Pull and release.** Press on the string, drag up or down, read the
+   millimetres and newtons, and let go. Grab it while it is ringing: it
+   stops as you take hold.
+8. **A harmonic.** Click the string a third of the way along (a pluck in
+   the middle would not sound the octave at all). While it rings, type 0.5
+   into Pluck position in the inspector, which moves the finger without
+   plucking, and hold M: the fundamental stops and the octave is left.
+9. **Softness.** Drag Pluck softness from 0 to 1 and pluck.
+10. **Tension while ringing**, Undo, Redo, reload the page (the instrument
+    and its switch come back), and load a bar example and return.

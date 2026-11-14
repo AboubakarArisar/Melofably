@@ -69,6 +69,13 @@ A deterministic replacement would measure allocation directly instead of
 counting collections. That is a change to an approved Phase 3A test and has
 not been made.
 
+## Phase 3D.1
+
+With the configuration above, on mains power and the machine at 20 to 35 %
+load, the full suite (265 tests in 17 files) passed in each of the three
+complete runs made, in 80 to 86 s. The test of the previous section did not
+fail in any of them, and was not changed.
+
 ## What a failure means
 
 - `Test timed out in 180000ms`: the machine was too busy even for the longer

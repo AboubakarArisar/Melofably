@@ -3,7 +3,7 @@
 // component. Everything drawn here is read from the graph.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { cannotConnect, CONNECTION_LABELS, isBody, isExciter, isString, TYPES, type Component, type ConnectionType, type Graph } from './graph.ts'
-import { CANVAS, componentAt, ends, EXCITER_RADIUS, handle, HANDLE_REACH, onHandle, rectSize, strikePoint, zigzag, type Point } from './shapes.ts'
+import { CANVAS, componentAt, ends, EXCITER_RADIUS, handle, HANDLE_REACH, onHandle, playPoint, PULL_LIMIT, PULL_SCALE, PULL_STARTS, rectSize, strikePoint, STRING_GRIP, zigzag, type Point } from './shapes.ts'
 
 export type Selection = { kind: 'component' | 'connection'; id: string } | null
 
@@ -19,9 +19,22 @@ interface Props {
   onConnect(from: string, to: string): void
   onRemoveComponent(id: string): void
   onStrike(id: string): void
+  /** How strongly the instrument is still ringing, 0 to 1: drawn as a haze around a string. */
+  ringing: number
+  /** A press on a string's playing part, at this fraction of its length: the pluck point goes there. */
+  onPlayAt(id: string, position: number): void
+  /** The string is held `displacement` metres aside. Returns the force that takes, N, or null if it cannot be pulled now. */
+  onPull(id: string, displacement: number): number | null
+  /** The press ended: let go of a pulled string (`pulled`), or pluck it as the Play button does. */
+  onLetGo(id: string, pulled: boolean): void
 }
 
-type Drag = { kind: 'move'; id: string; dx: number; dy: number } | { kind: 'link'; from: string; at: Point } | null
+type Drag =
+  | { kind: 'move'; id: string; dx: number; dy: number }
+  | { kind: 'link'; from: string; at: Point }
+  /** A finger on a string: where along it, where the press began, how far across it has gone, and the force that takes. */
+  | { kind: 'pull'; id: string; position: number; from: number; across: number; force: number | null; pulled: boolean }
+  | null
 
 const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9', steelString: '#e6e9ee', dampedBox: '#b98d58' }
 /** Excitation is drawn in amber, physical links between bars in teal: two different things, two different colours. */
@@ -43,7 +56,7 @@ function preview(graph: Graph, from: string, to: string | null): { text: string;
   return { text: exciter ? `${exciter.name} will strike ${bar.name}` : `Join ${a.name} and ${b.name} with a spring and damper`, ok: true }
 }
 
-export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, onConnect, onRemoveComponent, onStrike }: Props) {
+export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, onConnect, onRemoveComponent, onStrike, ringing, onPlayAt, onPull, onLetGo }: Props) {
   const svg = useRef<SVGSVGElement>(null)
   const [drag, setDrag] = useState<Drag>(null)
   const lastPress = useRef({ id: '', time: 0 })
@@ -59,6 +72,12 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
     e.stopPropagation()
     svg.current!.setPointerCapture(e.pointerId)
     onSelect({ kind: 'component', id: c.id })
+    // On the playing part of a string: a finger. A click plucks it there; a drag across it pulls it aside.
+    const at = onHandle(c, local(e)) ? null : playPoint(c, local(e))
+    if (at !== null) {
+      onPlayAt(c.id, at)
+      return setDrag({ kind: 'pull', id: c.id, position: at, from: local(e).y, across: 0, force: null, pulled: false })
+    }
     // A second press on the same component within a third of a second strikes it. (Counted here
     // because the pointer is captured for dragging, so the browser's own double-click never arrives.)
     const now = performance.now()
@@ -72,9 +91,15 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
     if (!drag) return
     const p = local(e)
     if (drag.kind === 'move') onMove(drag.id, ...within(p.x - drag.dx, p.y - drag.dy))
-    else setDrag({ ...drag, at: p })
+    else if (drag.kind === 'pull') {
+      const across = Math.max(-PULL_LIMIT, Math.min(PULL_LIMIT, p.y - drag.from))
+      // Once it has been pulled it stays a pull, even if the hand comes back to the middle.
+      if (!drag.pulled && Math.abs(across) < PULL_STARTS) return
+      setDrag({ ...drag, across, pulled: true, force: onPull(drag.id, across * PULL_SCALE) })
+    } else setDrag({ ...drag, at: p })
   }
   const release = (e: PointerEvent) => {
+    if (drag?.kind === 'pull') onLetGo(drag.id, drag.pulled)
     if (drag?.kind === 'link') {
       const target = componentAt(graph, local(e))
       if (target && target !== drag.from) onConnect(drag.from, target)
@@ -194,14 +219,42 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 tabIndex={0}
                 role="button"
                 aria-pressed={on}
-                aria-label={`${c.name}. Enter selects, Space strikes, arrow keys move, Delete removes.`}
+                aria-label={isString(c) ? `${c.name}. Enter selects, Space plucks, arrow keys move, Delete removes. With a pointer: click it to pluck there, or drag across it and let go.` : `${c.name}. Enter selects, Space strikes, arrow keys move, Delete removes.`}
                 opacity={dim ? 0.35 : 1}
                 className="cursor-grab outline-none focus-visible:[&>.body]:stroke-[#6cb2ff]"
                 onKeyDown={(e) => keys(e, c)}
                 onPointerDown={(e) => press(e, c)}
               >
-                <title>{`${TYPES[c.type].description} Double-click to ${isString(c) || isBody(c) ? 'pluck the string' : 'strike'}.`}</title>
-                {size ? (
+                <title>{isString(c) ? 'Click the string to pluck it there. Drag across it and let go to pull it aside and release it. Drag its left end to move it.' : `${TYPES[c.type].description} Double-click to ${isBody(c) ? 'pluck the string' : 'strike'}.`}</title>
+                {isString(c) && size ? (
+                  (() => {
+                    const [left, right] = [c.x - size.w / 2, c.x + size.w / 2]
+                    const held = drag?.kind === 'pull' && drag.id === c.id && drag.pulled ? drag : null
+                    const hx = held ? left + held.position * size.w : 0
+                    // How strongly it is ringing: a haze of this half-height, widest in the middle. It shows that
+                    // the instrument holds energy, not the string's true shape, which moves far too fast to draw.
+                    const haze = held ? 0 : 1.5 + 9 * ringing
+                    return (
+                      <>
+                        {/* A wide invisible band, so that a thin string is easy to pick and to play. */}
+                        <rect className="body" x={left} y={c.y - 14} width={size.w} height="28" fill="transparent" stroke={on || offered || flagged.has(c.id) ? stroke : 'none'} strokeWidth="1.5" strokeDasharray="4 4" rx="6" />
+                        {ringing > 0.02 && !held && <path data-ringing={ringing.toFixed(2)} d={`M${left + STRING_GRIP} ${c.y}Q${c.x + STRING_GRIP / 2} ${c.y - 2 * haze} ${right} ${c.y}Q${c.x + STRING_GRIP / 2} ${c.y + 2 * haze} ${left + STRING_GRIP} ${c.y}z`} fill={FILL[c.type]} opacity="0.28" pointerEvents="none" style={{ transition: 'd 0.25s linear' }} />}
+                        <polyline points={held ? `${left},${c.y} ${hx},${c.y + held.across} ${right},${c.y}` : `${left},${c.y} ${right},${c.y}`} fill="none" stroke={FILL[c.type]} strokeWidth="3" strokeLinejoin="round" pointerEvents="none" />
+                        {/* The fixed end: the part it is moved by. */}
+                        <rect x={left - 3} y={c.y - 9} width={STRING_GRIP} height="18" rx="3" fill="#59616b" stroke="#0b0d10" strokeWidth="1.5" className="cursor-grab" />
+                        {hit && !held && <path d={`M${hit.x - 7} ${hit.y - 12}h14l-7 10z`} fill={STRIKE_COLOR} pointerEvents="none" />}
+                        {held && (
+                          <g pointerEvents="none">
+                            <circle cx={hx} cy={c.y + held.across} r="6" fill={STRIKE_COLOR} />
+                            <text x={hx} y={c.y + held.across + (held.across < 0 ? -14 : 24)} textAnchor="middle" fontSize="12.5" fill={STRIKE_COLOR}>
+                              {held.force === null ? 'Start audio to pull the string' : `${Math.abs(held.across * PULL_SCALE * 1000).toFixed(1)} mm · ${Math.abs(held.force).toFixed(1)} N`}
+                            </text>
+                          </g>
+                        )}
+                      </>
+                    )
+                  })()
+                ) : size ? (
                   <>
                     <rect className="body" x={c.x - size.w / 2} y={c.y - size.h / 2} width={size.w} height={size.h} rx="5" fill={FILL[c.type]} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={offered ? '6 4' : undefined} />
                     {/* The body's sound hole, with its screen. */}
@@ -266,6 +319,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
           <span style={{ color: LINK_COLOR }}>◉</span> drag from a dot to another component to connect them
         </li>
         <li>Double-click a bar or exciter to strike it</li>
+        {graph.components.some(isString) && <li>A string: click it to pluck it there; drag across it and let go to pull it aside (drawn about ten times larger than life) and release it; drag its grey end to move it. The haze shows that the instrument is still ringing.</li>}
       </ul>
     </div>
   )

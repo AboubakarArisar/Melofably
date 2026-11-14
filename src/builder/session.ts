@@ -4,7 +4,7 @@
 // so this logic is tested in Node against the real engine.
 import type { Call } from '../experimental/wasm/engine.ts'
 import type { Graph, Issue } from './graph.ts'
-import { barCalls, exciterCalls, instrumentCalls, liveCalls, structureKey, translate, type Built } from './translate.ts'
+import { barCalls, exciterCalls, instrumentCalls, liveCalls, pullCallsFor, releaseCallsFor, structureKey, touchCalls, translate, type Built } from './translate.ts'
 
 /** One running engine. */
 export interface Voice {
@@ -148,5 +148,27 @@ export class Session {
   /** Play the whole instrument. */
   play(): boolean {
     return this.built !== null && this.graph !== null && this.send(instrumentCalls(this.graph, this.built))
+  }
+
+  // ---- Playing a string by hand (Phase 3D.1). Each is false, and does nothing, if there is no string. ----
+
+  /** A finger comes to rest on the string and stays there, damping it (`on`), or leaves it. */
+  touch(on: boolean): boolean {
+    return this.built !== null && this.graph !== null && this.send(touchCalls(this.graph, this.built, on))
+  }
+
+  /**
+   * A finger holds the string `displacement` metres aside at its pluck point (touching it, so it is
+   * damped). Call again as the hand moves. Returns the force in newtons, or null if nothing was done.
+   */
+  pull(displacement: number): number | null {
+    if (this.built === null || this.graph === null) return null
+    const { calls, force } = pullCallsFor(this.graph, this.built, displacement)
+    return this.send(calls) ? force : null
+  }
+
+  /** The finger lets go: the string is plucked from where it was held. */
+  release(): boolean {
+    return this.built !== null && this.graph !== null && this.send(releaseCallsFor(this.graph, this.built))
   }
 }

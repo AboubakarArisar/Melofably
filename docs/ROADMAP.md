@@ -111,6 +111,12 @@ and heard as radiated sound pressure. The engine is unchanged; the builder's
 instrument matches the prototype sample for sample. One string only. See
 [STRING_INSTRUMENT.md](STRING_INSTRUMENT.md).
 
+Phase 3D.1 (awaiting review): playing that instrument. A finger that is a
+damper on the string, so that a note can be retriggered, damped or muted;
+the string pulled aside on the canvas and released; pluck softness. The
+approved sound is unchanged when none of it is used. See section 9 of
+[STRING_INSTRUMENT.md](STRING_INSTRUMENT.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

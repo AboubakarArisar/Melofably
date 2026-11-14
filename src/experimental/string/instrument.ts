@@ -47,6 +47,8 @@ export interface BuiltInstrument {
   bridges: number[]
   /** Modes in use: per string, and in the body. */
   modes: { strings: number[]; body: number }
+  /** Engine resonator of something that does not move (the screen over the hole pushes on it), if there is one. */
+  ground?: number
 }
 
 /**
@@ -69,14 +71,15 @@ export function buildInstrument(inst: Instrument, sampleRate: number): BuiltInst
   })
   if (mass >= 0) design.calls.push(['addSpring', mass, 0, body, 0, GLUE, 0, 0, 0])
   if (inst.output) design.output([body, inst.output.port], inst.output.gain)
+  let ground: number | undefined
   if (inst.air && inst.output) {
     // The plug's port moves by -(hole area / plate area) times the plug: see airCavity().
     // A screen over the hole: a damper from the plug itself (a second port, shape 1) to something that does not move.
     const screened = (inst.air.resistance ?? 0) > 0
     const plug = design.modal([screened ? { ...inst.air.plug, shape: [inst.air.plug.shape[0], 1] } : inst.air.plug])
-    if (screened) design.calls.push(['addSpring', plug, 1, design.mass(1e12), 0, 0, inst.air.resistance!, 0, 0])
+    if (screened) design.calls.push(['addSpring', plug, 1, (ground = design.mass(1e12)), 0, 0, inst.air.resistance!, 0, 0])
     design.calls.push(['addSpring', body, inst.output.port, plug, 0, inst.air.stiffness, inst.air.damping, 0, 0])
     design.output([plug, 0], -inst.output.gain)
   }
-  return { calls: design.build(), strings, body, bridges, modes: { strings: kept.map((m) => m.length), body: inst.body.length } }
+  return { calls: design.build(), strings, body, bridges, modes: { strings: kept.map((m) => m.length), body: inst.body.length }, ground }
 }

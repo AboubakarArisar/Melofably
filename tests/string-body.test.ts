@@ -70,14 +70,21 @@ describe('The builder\'s string instrument is the validated one', () => {
     if (!translation.ok) return
     const prototype = buildInstrument(onSoundboard({ ...DAMPED_BOX, strings: [GUITAR_A] }).instrument, SR)
     const { calls } = translation.built
-    // The prototype's calls, then one more: the request for radiated pressure.
-    expect(calls.slice(0, -1)).toEqual(prototype.calls)
+    // The reference build of Phase 3C.3 is still the prototype's calls, exactly.
+    expect(buildStringBody(DEFAULT, SR).calls).toEqual(prototype.calls)
+    // What the builder plays (since Phase 3D.1) is those calls with one thing added before 'build': the
+    // finger, a damper of no strength between the string's pluck point and the fixed mass. Then the
+    // request for radiated pressure.
+    const finger = calls.at(-3)!
+    expect(finger).toEqual(['addSpring', translation.built.stringBody!.string, translation.built.stringBody!.pluckPort, 3, 0, 0, 0, 0, 0])
+    expect([...calls.slice(0, -3), calls.at(-2)]).toEqual(prototype.calls)
     expect(calls.at(-1)![0]).toBe('radiate')
     expect(translation.built.output).toBe('pressure')
     expect(translation.built.notes).toEqual([])
     // One string of 100 modes, the plate, the plug of air, and something fixed for the hole's screen to push on.
     expect(calls.filter((c) => c[0] === 'addResonator').length).toBe(4)
-    expect(calls.filter((c) => c[0] === 'addSpring').length).toBe(3) // bridge, screen, air spring
+    expect(calls.filter((c) => c[0] === 'addSpring').length).toBe(4) // bridge, screen, air spring, finger
+    expect(translation.built.stringBody!.finger).toBe(3)
     expect(translation.built.stringBody!.modes).toBe(100)
   })
 

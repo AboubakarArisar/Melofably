@@ -161,6 +161,29 @@ export default function Builder() {
     else setNotice(!state.running ? 'Start audio first.' : state.issues.length ? 'Fix the problems listed below first.' : `${item.name} is not attached to a bar, so there is nothing to strike. Drag from its dot to a bar.`)
   }
 
+  // ---- Playing a string by hand (Phase 3D.1) ----
+  const hasString = graph.components.some((c) => TYPES[c.type].kind === 'string')
+  /** An edit that must reach the engine before what follows it (a pluck at a new point), not after the next render. */
+  const now = (next: Graph, key: string) => {
+    edit(next, key)
+    session.update(next)
+  }
+  const playAt = (id: string, position: number) => {
+    const string = graph.components.find((c) => c.id === id)
+    if (string && string.params.pluckPosition !== position) now(setParam(graph, id, 'pluckPosition', position), `pluck-at:${id}`)
+  }
+  const pull = (_id: string, displacement: number) => session.pull(displacement)
+  const letGo = (id: string, pulled: boolean) => {
+    if (pulled ? session.release() : session.play()) flash([id])
+    else setNotice(!state.running ? 'Start audio first.' : 'There is nothing to pluck yet.')
+  }
+  const [muting, setMuting] = useState(false)
+  const mute = (on: boolean) => {
+    if (on === muting) return
+    setMuting(on)
+    if (!session.touch(on) && on) setNotice(state.running ? 'There is no string to touch.' : 'Start audio first.')
+  }
+
   const add = (type: ComponentType) => {
     const reason = cannotAdd(graph, type)
     if (reason) return setNotice(reason)
@@ -203,10 +226,15 @@ export default function Builder() {
       else if (!typing && e.key === ' ' && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof SVGElement)) {
         e.preventDefault()
         play()
-      }
+      } else if (!typing && !mod && e.key.toLowerCase() === 'm' && hasString && !e.repeat) mute(true) // held: the finger stays on the string
     }
+    const onKeyUp = (e: KeyboardEvent) => e.key.toLowerCase() === 'm' && mute(false)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKeyUp)
+    }
   })
 
   // A selection that no longer exists (undo, load) is dropped.
@@ -222,6 +250,8 @@ export default function Builder() {
 
   const load01 = meter ? Math.min(1, Math.max(0, (20 * Math.log10(Math.max(meter.peakOfFullScale, 2.5e-5)) + 72) / 72)) : 0
   const pressure = meter?.unit === 'Pa'
+  // How strongly the instrument is ringing, 0 to 1 over six decades of energy below a millijoule (a pluck is about half of one).
+  const ringing = meter && pressure ? Math.min(1, Math.max(0, 1 + Math.log10(Math.max(meter.engine.energy, 1e-12) / 1e-3) / 6)) : 0
   const late = meter?.engine.slowBlocks ?? 0
   const cpu = meter && meter.engine.blocks ? (100 * meter.engine.busyMs) / ((meter.engine.blocks * 128 * 1000) / meter.sampleRate) : 0
 
@@ -274,6 +304,23 @@ export default function Builder() {
         <button className={primary} onClick={play} disabled={!state.running || state.issues.length > 0} title="Space">
           Play instrument
         </button>
+        {hasString && (
+          <button
+            className={`${button} ${muting ? 'border-amber-300 bg-amber-900' : ''}`}
+            disabled={!state.running}
+            aria-pressed={muting}
+            title="Hold down (or hold M): a finger rests on the string and damps it. Let go and the finger leaves. Pluck while holding for a short, muted note."
+            onPointerDown={() => mute(true)}
+            onPointerUp={() => mute(false)}
+            onPointerLeave={() => mute(false)}
+            onPointerCancel={() => mute(false)}
+            onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && !e.repeat && mute(true)}
+            onKeyUp={(e) => (e.key === ' ' || e.key === 'Enter') && mute(false)}
+            onBlur={() => mute(false)}
+          >
+            {muting ? 'Finger on the string' : 'Hold to mute'}
+          </button>
+        )}
         <label className="flex items-center gap-2 text-sm text-neutral-300">
           Volume
           <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-28 accent-sky-400" />
@@ -335,6 +382,10 @@ export default function Builder() {
             onConnect={join}
             onRemoveComponent={(id) => removeItem({ kind: 'component', id })}
             onStrike={strike}
+            ringing={ringing}
+            onPlayAt={playAt}
+            onPull={pull}
+            onLetGo={letGo}
           />
           <div className="mt-3 space-y-2 text-sm">
             <p aria-live="polite" className="min-h-5 text-neutral-300">

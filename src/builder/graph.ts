@@ -48,6 +48,8 @@ export interface ParamSpec {
   log?: boolean
   /** Can change while sounding. Otherwise a change rebuilds the instrument and its sound restarts. */
   live: boolean
+  /** A switch: the value is 0 (off) or 1 (on) and nothing between. */
+  toggle?: boolean
   hint: string
 }
 
@@ -134,6 +136,8 @@ export const TYPES: Record<ComponentType, TypeSpec> = {
       { key: 'length', label: 'Length', unit: 'm', min: 0.5, max: 0.8, step: 0.005, initial: 0.65, live: false, hint: 'Longer is lower.' },
       { key: 'pluckPosition', label: 'Pluck position', unit: '', min: 0.05, max: 0.95, step: 0.01, initial: 0.8, live: true, hint: 'Where the finger plucks: 0 is the fixed end, 1 the bridge. Nearer the bridge is brighter. It applies from the next pluck.' },
       { key: 'pluckStrength', label: 'Pluck strength', unit: 'N', min: 0.2, max: 8, step: 0.1, initial: 2, live: true, hint: 'How hard the finger pulls before it lets go. Twice the force is twice the sound pressure. It applies from the next pluck.' },
+      { key: 'pluckSoftness', label: 'Pluck softness', unit: '', min: 0, max: 1, step: 0.01, initial: 0.3, live: true, hint: 'How the finger lets go: 0 is a nail or a pick, sharp and bright; 1 is soft flesh, which rounds off the high overtones. 0.3 is the approved pluck. It applies from the next pluck.' },
+      { key: 'retrigger', label: 'Touch before plucking', unit: '', min: 0, max: 1, step: 1, initial: 0, live: true, toggle: true, hint: 'Off: a pluck adds to whatever the string is already doing. On: the finger first rests on the string for 30 ms, which damps what it was doing, and plucks as it leaves, so that a repeated note starts the same way each time.' },
     ],
   },
   dampedBox: {
@@ -187,6 +191,7 @@ export interface Issue {
 function checkNumber(issues: Issue[], id: string, who: string, spec: ParamSpec, value: unknown) {
   if (typeof value !== 'number' || !Number.isFinite(value)) issues.push({ id, message: `${who}: ${spec.label} must be a number.` })
   else if (value < spec.min || value > spec.max) issues.push({ id, message: `${who}: ${spec.label} must be between ${spec.min} and ${spec.max}${spec.unit ? ` ${spec.unit}` : ''} (it is ${value}).` })
+  else if (spec.toggle && value !== 0 && value !== 1) issues.push({ id, message: `${who}: ${spec.label} is either off (0) or on (1) (it is ${value}).` })
 }
 
 /** Why `from` and `to` cannot be joined (ignoring what is already connected), or null if they can. */
@@ -364,6 +369,12 @@ export function deserialize(text: string): Graph {
     throw new Error('Not a saved instrument: components, connections or the identifier counter are missing.')
   }
   if (![...g.components, ...g.connections].every((item) => typeof item === 'object' && item !== null)) throw new Error('Not a saved instrument: a component or connection is not an object.')
+  // An instrument saved before a property existed is given that property's starting value, which is
+  // what it had then. (Phase 3D.1 added two to the string.) Nothing that is present is changed.
+  g.components = g.components.map((c) => {
+    const missing = (TYPES[c.type]?.params ?? []).filter((p) => typeof c.params === 'object' && c.params !== null && !(p.key in c.params))
+    return missing.length ? { ...c, params: { ...c.params, ...Object.fromEntries(missing.map((p) => [p.key, p.initial])) } } : c
+  })
   const issues = validateGraph(g)
   // New identifiers must not collide with existing ones.
   const taken = [...g.components, ...g.connections].map((item) => Number(String(item.id).slice(1))).filter(Number.isFinite)

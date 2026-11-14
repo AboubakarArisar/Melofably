@@ -50,9 +50,10 @@ export const MAX_BLOCK = 4096
 
 /**
  * Calls answered by the AudioWorklet processor itself, not by the engine (processor.js): a plucking
- * force over many samples, and the conversion of the engine's output to sound pressure.
+ * force over many samples, the conversion of the engine's output to sound pressure, a finger's touch
+ * (a damper brought on and taken off) and a finger's pull (a held force, let go).
  */
-export type HostCall = 'pluck' | 'radiate'
+export type HostCall = 'pluck' | 'radiate' | 'touch' | 'hold'
 
 /** One call of an engine function (or of the processor), as data: what is sent to the AudioWorklet. */
 export type Call = [name: Exclude<keyof Engine, 'memory'> | HostCall, ...args: number[]]
@@ -62,7 +63,7 @@ export const instantiate = (bytes: BufferSource): Engine =>
 
 export function run(engine: Engine, calls: Call[]): void {
   for (const [name, ...args] of calls) {
-    if (name === 'pluck' || name === 'radiate') throw new Error(`"${name}" is answered by the audio processor: run these calls through it (analysis/worklet.ts in Node)`)
+    if (name === 'pluck' || name === 'radiate' || name === 'touch' || name === 'hold') throw new Error(`"${name}" is answered by the audio processor: run these calls through it (analysis/worklet.ts in Node)`)
     ;(engine[name] as (...a: number[]) => unknown)(...args)
   }
 }
