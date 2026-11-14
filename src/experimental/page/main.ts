@@ -2,7 +2,8 @@
 // physics engine in a real AudioWorklet. Plain DOM; not part of the application.
 import { createInstrumentNode } from '../../audio/worklet/instruments.ts'
 import { EXAMPLES, STRING_EXAMPLES } from '../../builder/examples.ts'
-import { instrumentCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
+import { barModes, instrumentCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
+import { radiationWeights } from '../radiation/barRadiation.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -691,6 +692,62 @@ async function integrated(example = 0) {
   return { example: STRING_EXAMPLES[example].id, fullScalePa: PRESSURE_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
 }
 
+// ---- Radiation prototype in a real AudioWorklet (Phase 3D.3) ------------------------------------
+
+/**
+ * Bars like the builder's metal bar, each a semitone above the last, struck in turn ten times a
+ * second, live. With `radiating`, each has a radiation port (one weight per mode, for a listener 1 m
+ * away at 45 degrees) and the processor differentiates the sum into sound pressure; without, the
+ * output is the bars' velocities as it is today. Compares the two for several numbers of bars.
+ */
+async function radiationBench() {
+  await stop()
+  const bar = EXAMPLES[0].make().components.find((c) => c.type === 'metalBar')!
+  const results: Record<string, unknown> = {}
+  for (const [count, radiating] of [[1, false], [1, true], [16, false], [16, true], [64, false], [64, true]] as const) {
+    const ctx = new AudioContext({ latencyHint: 'interactive' })
+    const modes = barModes(bar, ctx.sampleRate)
+    const weights = radiationWeights({ length: bar.params.length, width: bar.params.width / 1000, thickness: bar.params.thickness / 1000 }, { distance: 1, angle: 45 }, modes.map((m) => m.frequency))
+    const calls: Call[] = [['reset', ctx.sampleRate, 2]]
+    for (let r = 0; r < count; r++) {
+      calls.push(['addResonator', radiating ? 3 : 2, modes.length])
+      modes.forEach((mode, n) => {
+        mode.shape.forEach((value, port) => calls.push(['setShape', r, port, n, value]))
+        if (radiating) calls.push(['setShape', r, 2, n, weights[n]])
+        calls.push(['setMode', r, n, Math.min(mode.frequency * 2 ** (r / 12), 0.45 * ctx.sampleRate), mode.t60, mode.mass])
+      })
+      calls.push(['addOutput', r, radiating ? 2 : 0, radiating ? 1 : 0.25])
+    }
+    calls.push(['build'])
+    if (radiating) calls.push(['radiate', ctx.sampleRate, 1, 0, 0, 64])
+    const physics = await createPhysicsNode(ctx, calls, { measure: true })
+    physics.node.connect(new GainNode(ctx, { gain: 0.05 })).connect(ctx.destination)
+    await ctx.resume()
+    await sleep(1000)
+    const stats = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+    const [r0, c0, u0, t0] = [await physics.report(), ctx.currentTime, stats?.underrunEvents ?? 0, performance.now()]
+    for (let i = 0; performance.now() - t0 < 6000; i++) {
+      physics.send([['strike', i % count, 0, 0.03, 0.0004]])
+      await sleep(100)
+    }
+    const r1 = await physics.report()
+    const blocks = r1.blocks - r0.blocks
+    results[`${count} bar${count > 1 ? 's' : ''}, ${radiating ? 'radiated pressure' : 'velocity output'}`] = {
+      modes: count * modes.length,
+      engineCpuPercentOfOneCore: Number(((100 * (r1.busyMs - r0.busyMs)) / ((blocks * 128 * 1000) / ctx.sampleRate)).toFixed(2)),
+      blocksOf2msOrMore: r1.slowBlocks - r0.slowBlocks,
+      blocksProcessed: blocks,
+      blocksExpected: Math.round(((ctx.currentTime - c0) * ctx.sampleRate) / 128),
+      deviceDropouts: stats ? stats.underrunEvents - u0 : 'not reported',
+      nonFiniteSamples: r1.faults,
+      engineMemoryBytes: r1.memoryBytes,
+    }
+    physics.dispose()
+    await ctx.close()
+  }
+  return { userAgent: navigator.userAgent, results }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -721,4 +778,4 @@ applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, livePeak, counts } })

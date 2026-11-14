@@ -28,6 +28,7 @@
     "render:string-body": "node analysis/render-string-body.ts",
     "render:string-playing": "node analysis/render-string-playing.ts",
     "render:string-bar": "node analysis/render-string-bar.ts",
+    "render:radiation": "node analysis/render-radiation.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

@@ -122,6 +122,12 @@ to one metal bar, in one engine system, each ringing the other; heard as the
 bar's velocity. Only that pair is allowed in the builder. See
 [HYBRID.md](HYBRID.md).
 
+Phase 3D.3 (research, awaiting review): how every instrument makes its
+output, and a prototype of the sound pressure a bar radiates (a line of
+dipoles), checked three ways. Nothing is integrated and no sound changed;
+the finding is that a shared pressure output needs the engine to have
+several outputs. See [RADIATION.md](RADIATION.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.
