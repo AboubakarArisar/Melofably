@@ -142,8 +142,8 @@ describe('The candidates', () => {
       expect(b.calls.at(-1)![1]).toBe(LISTENER_FULL_SCALE)
       expect(instrumentCalls(graph, b)).toEqual(instrumentCalls(design(), example))
     }
-    // Nothing was added to the builder's examples.
-    expect(EXAMPLES.length + STRING_EXAMPLES.length + RADIATION_EXAMPLES.length).toBe(6)
+    // The builder's examples: the six of Phase 3D.5 and the tuned candidate, added on approval in Phase 3D.5.1.
+    expect([...EXAMPLES, ...STRING_EXAMPLES, ...RADIATION_EXAMPLES].map((x) => x.id)).toEqual(['single', 'coupled', 'mixed', 'string', 'string-bar', 'string-bar-pressure', 'string-bar-pressure-tuned'])
   })
 
   test('tying the string at the bar\'s end: the pluck is 14 dB louder, the stroke is the same, the string keeps its pitch', async () => {

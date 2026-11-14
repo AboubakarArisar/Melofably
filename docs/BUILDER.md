@@ -427,3 +427,7 @@ A string may also share a canvas with one metal bar and one mallet, tied to the 
 ## 13. A listener for the hybrid (Phase 3D.4)
 
 One new component, "Listener in the air", allowed only beside a string tied to a metal bar. With it, what is heard is the sound pressure the bar radiates a metre away, in pascals, instead of the bar's velocity; without it, everything is as before. One new example uses it; the earlier examples are unchanged. See section 4 of [RADIATOR.md](RADIATOR.md).
+
+## 14. A second radiated example (Phase 3D.5.1)
+
+"A string tied to the end of a longer, tuned metal bar, heard as sound pressure at 1 m": the first radiated example with its bar 0.485 m long and the string tied at the bar's end (Connection position 0), which by measurement makes the pluck about 25 dB louder at the listener. No new component or property; the other examples are unchanged. Experimental, and not approved by listening. See section 12 of [HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md).

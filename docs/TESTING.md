@@ -100,3 +100,7 @@ The same configuration. The suite is 315 tests in 20 files. `tests/radiator.test
 ## Phase 3D.5
 
 The same configuration. The suite is 330 tests in 21 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
+
+## Phase 3D.5.1
+
+The same configuration. The suite is 337 tests in 22 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.

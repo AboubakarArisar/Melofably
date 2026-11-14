@@ -399,3 +399,84 @@ is 25 dB louder and its gap to the stroke is halved (45.6 to 21.1 dB).
    bar's colour, the string needs a real radiator: for example the string
    and bar standing on the existing damped box. That is a larger step and a
    decision for a later phase, not something to do here.
+
+## 12. The tuned candidate as a builder example (Phase 3D.5.1)
+
+After the research was approved for progression, the tuned candidate was
+added to the builder as a separate experimental example: "A string tied to
+the end of a longer, tuned metal bar, heard as sound pressure at 1 m"
+(`string-bar-pressure-tuned`, the second entry of `RADIATION_EXAMPLES`,
+under "Experimental: radiated sound" in the menu). **Its sound has not had
+listening approval.** I have not heard it.
+
+**What was changed.** One function in `src/builder/examples.ts` and its
+entry in the list. The example is the original radiated example with two
+properties of its bar set: Length 0.485 m and Connection position 0. Its
+graph equals `design(CANDIDATES.tuned)` exactly (tested). The engine, the
+processor, the radiation algorithm, the translation, every playback gain,
+the original hybrid and the original radiated example are untouched: the
+two examples' engine call lists have the same calls in the same order and
+differ only in `setShape`, `setMode` and the radiator's numbers, which
+follow from the bar's length and the tie.
+
+**Tests** (`tests/tuned-example.test.ts`, 7): the physical configuration,
+value by value; the differences from the original, and that no gain is among
+them; the other examples unchanged; its output against the research's
+numbers (pluck 0.119 Pa and 64.8 dB LAFmax, stroke 1.68 Pa, 25.1 dB above
+the original's pluck) and, sample for sample, against the same instrument
+built the research way; string pitch within 2 cents; pluck, mallet, mute,
+pull and release; live joint edits; determinism; undo, redo, save, restore.
+
+One assertion written in Phase 3D.5 was updated, as the approval requires:
+that phase checked that the builder had six examples; it now checks the
+seven by name.
+
+One thing the playing test found: with a finger on the string, this bar
+loses its own energy faster than the original hybrid's bar does (3.6 % left
+after 0.3 s, against more than 5 %), because it is tied more closely to the
+string. Muting the string therefore also quiets the bar somewhat. It is
+physics, not a fault, and is asserted as measured.
+
+**In a real Chromium AudioWorklet** (`radiatorBench(30, 'examples')`; 48 kHz,
+Chrome 156, on battery; each case 30 s, plucked and struck in turn about ten
+times a second):
+
+| Example | Playing | CPU, % of a core | Longest block | Blocks of 2 ms or more | Blocks made / due | Device dropouts | Faults |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Original radiated | played | 13.2 | 2 ms | 1 | 11265 / 11265 | 1 | 0 |
+| | played, joint edited | 12.5 | 2 ms | 0 | 11254 / 11254 | 0 | 0 |
+| **Tuned** | played | 13.5 | 2 ms | 2 | 11268 / 11268 | 0 | 0 |
+| | played, joint edited | 12.8 | 1 ms | 0 | 11253 / 11253 | 0 | 0 |
+
+Memory 3 145 728 bytes and at most 3 solver iterations throughout. The new
+example costs what the original costs. Two blocks of its 22 521 took 2 ms or
+more of the 2.67 ms available; none was missed and the device reported no
+dropout. As before, two minutes on one machine with a 1 ms clock is not a
+claim of real-time safety.
+
+`integratedRadiated(1)` renders the example in the browser's own
+AudioWorklet; its peak, sum of squares and five samples equal Node's to
+every digit (peak 0.10455888509750366, sum of squares 6.12513834843329). In
+the builder page it loads, plays, shows the mute button, and its meter reads
+pascals.
+
+**Comparison files.** `npm run render:tuned-example` writes
+`renders/tuned-example/` (not committed). Everything is sound pressure in
+pascals at the experimental listener; 3 s each, 48 kHz, 24-bit.
+
+| Sound | Peak | LAFmax | In `comparison.wav` and `common/` (x0.536 per Pa, -5.4 dB) | `matched/` gain |
+| --- | --- | --- | --- | --- |
+| 1 Original radiated example, plucked | 0.00963 Pa | 39.8 dB | -45.7 dBFS, from 0.0 s | +39.4 dB |
+| 2 Tuned example, plucked | 0.119 Pa | 64.8 dB | -23.9 dBFS, from 3.5 s | +15.5 dB |
+| 3 Original radiated example, struck | 1.15 Pa | 85.4 dB | -4.2 dBFS, from 7.0 s | -4.9 dB |
+| 4 Tuned example, struck | 1.68 Pa | 85.9 dB | -0.9 dBFS, from 10.5 s | -6.1 dB |
+
+- `comparison.wav` is the four in that order with half a second of silence
+  between, all at one gain, so that their relative loudness is the model's.
+  The first is 46 dB down in the file: turn the playback up, not the file.
+- `common/` holds the same four separately at that gain; `matched/` scales
+  each to the same A-weighted sound exposure, for timbre only.
+- Tuned over original: pluck +21.9 dB peak, +25.1 dB LAFmax; stroke +3.3 dB
+  peak, +0.5 dB LAFmax. Stroke over pluck: 45.6 dB originally, 21.1 dB tuned.
+- One multiplication is all that is done to any file; every gain is in
+  `listening.json`.

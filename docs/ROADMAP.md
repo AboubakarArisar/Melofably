@@ -140,6 +140,11 @@ bar is in a mode that hardly radiates), and two candidates that are the same
 instrument with the string tied at the bar's end and the bar retuned. Nothing
 is in the builder. See [HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md).
 
+Phase 3D.5.1 (experimental, awaiting review): the tuned candidate added to
+the builder as a second radiated example, exactly as validated; nothing else
+changed. Its sound has not had listening approval. See section 12 of
+[HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

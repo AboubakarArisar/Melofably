@@ -101,6 +101,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:radiation` | Render the bar-radiation prototype's comparisons (velocity today against modelled pressure) and its cost, into `renders/radiation/` |
 | `npm run render:radiator` | Render the approved outputs against the real-time 16-point radiator (metal bar, wooden bar, hybrid), with its comparison to the reference and its cost, into `renders/radiator/` |
 | `npm run render:hybrid-study` | Measure the hybrid from pluck or stroke to the listener, sweep its physical properties, and render level-matched and common-gain listening files of the candidates, into `renders/hybrid-study/` |
+| `npm run render:tuned-example` | Render the tuned radiated example against the original radiated example (one comparison file at a common gain, and level-matched files), into `renders/tuned-example/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

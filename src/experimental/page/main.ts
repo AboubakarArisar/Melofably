@@ -753,8 +753,8 @@ async function radiationBench() {
 // ---- The 16-point radiator in a real AudioWorklet (Phase 3D.4) -------------------------------------
 
 /** The builder's radiated example, played once and rendered offline here: numbers analysis/render-radiator.ts also computes in Node. */
-async function integratedRadiated() {
-  const graph = RADIATION_EXAMPLES[0].make()
+async function integratedRadiated(example = 0) {
+  const graph = RADIATION_EXAMPLES[example].make()
   const translation = translate(graph, 48000)
   if (!translation.ok) throw new Error('the radiated example does not translate')
   const ctx = new OfflineAudioContext(1, Math.round(2.2 * 48000), 48000)
@@ -766,7 +766,7 @@ async function integratedRadiated() {
     peak = Math.max(peak, Math.abs(v))
     sum += v * v
   }
-  return { example: RADIATION_EXAMPLES[0].id, fullScalePa: LISTENER_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
+  return { example: RADIATION_EXAMPLES[example].id, fullScalePa: LISTENER_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
 }
 
 /**
@@ -776,11 +776,14 @@ async function integratedRadiated() {
  * Reports the time spent in process(), the longest single block, blocks of 2 ms or more (a block lasts
  * 2.67 ms at 48 kHz), blocks made against blocks due, the output device's dropouts, faults and memory.
  */
-async function radiatorBench(seconds = 10, candidates = false) {
+async function radiatorBench(seconds = 10, candidates: boolean | 'examples' = false) {
   await stop()
   const results: Record<string, unknown> = {}
   // Phase 3D.5: with `candidates`, the research candidates instead (the same radiator, other bars).
-  const cases = candidates
+  // Phase 3D.5.1: with 'examples', the builder's two radiated examples as the builder makes them.
+  const cases = candidates === 'examples'
+    ? RADIATION_EXAMPLES.map((x) => [`builder example "${x.id}"`, x.make] as const)
+    : candidates
     ? ([['experimental example', () => design()], ['candidate: end-tied', () => design(CANDIDATES.endTied)], ['candidate: end-tied and tuned', () => design(CANDIDATES.tuned)]] as const)
     : ([['approved hybrid, velocity output', STRING_EXAMPLES[1].make], ['hybrid with listener, 16-point radiator', RADIATION_EXAMPLES[0].make]] as const)
   for (const [name, make] of cases) {

@@ -81,7 +81,22 @@ export const STRING_EXAMPLES: { id: string; label: string; make: () => Graph }[]
   { id: 'string-bar', label: 'A string tied to a metal bar', make: stringOnBar },
 ]
 
+/**
+ * Phase 3D.5.1: the tuned candidate of the Phase 3D.5 research (docs/HYBRID_PLAYABILITY.md), exactly.
+ * The radiated hybrid above with two properties of its bar changed and nothing else: the string is tied
+ * at the very end of the bar (Connection position 0 instead of 0.1), where every bending mode moves
+ * most, and the bar is 0.485 m long instead of 0.40 m, which puts its modes beside harmonics of the
+ * string (2.02, 10.94, 18.08 and 27.01 times its pitch). The same string, pluck, mallet, joint and
+ * listener; no gain is different. Its pluck is about 25 dB louder at the listener, by measurement.
+ */
+function stringOnTunedBarHeard(): Graph {
+  const graph = stringOnBarHeard()
+  const bar = graph.components.find((c) => c.type === 'metalBar')!
+  return setParam(setParam(graph, bar.id, 'connectionPosition', 0), bar.id, 'length', 0.485)
+}
+
 /** Phase 3D.4. Kept apart again: the two lists above are what earlier phases approved and check. */
 export const RADIATION_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
   { id: 'string-bar-pressure', label: 'A string tied to a metal bar, heard as sound pressure at 1 m', make: stringOnBarHeard },
+  { id: 'string-bar-pressure-tuned', label: 'A string tied to the end of a longer, tuned metal bar, heard as sound pressure at 1 m', make: stringOnTunedBarHeard },
 ]
