@@ -117,6 +117,11 @@ the string pulled aside on the canvas and released; pluck softness. The
 approved sound is unchanged when none of it is used. See section 9 of
 [STRING_INSTRUMENT.md](STRING_INSTRUMENT.md).
 
+Phase 3D.2 (awaiting review): the first hybrid. One string tied by a spring
+to one metal bar, in one engine system, each ringing the other; heard as the
+bar's velocity. Only that pair is allowed in the builder. See
+[HYBRID.md](HYBRID.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

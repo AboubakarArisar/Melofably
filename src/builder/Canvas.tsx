@@ -52,7 +52,10 @@ function preview(graph: Graph, from: string, to: string | null): { text: string;
   const [a, b] = [graph.components.find((c) => c.id === from)!, graph.components.find((c) => c.id === to)!]
   const exciter = isExciter(a) ? a : isExciter(b) ? b : null
   const bar = exciter === a ? b : a
-  if (isString(a) || isString(b)) return { text: `Stand ${isString(a) ? a.name : b.name} on ${isString(a) ? b.name : a.name} by its bridge`, ok: true }
+  if (isString(a) || isString(b)) {
+    const [string, other] = isString(a) ? [a, b] : [b, a]
+    return { text: isBody(other) ? `Stand ${string.name} on ${other.name} by its bridge` : `Tie the end of ${string.name} to ${other.name} with a spring`, ok: true }
+  }
   return { text: exciter ? `${exciter.name} will strike ${bar.name}` : `Join ${a.name} and ${b.name} with a spring and damper`, ok: true }
 }
 

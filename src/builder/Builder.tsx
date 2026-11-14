@@ -174,7 +174,8 @@ export default function Builder() {
   }
   const pull = (_id: string, displacement: number) => session.pull(displacement)
   const letGo = (id: string, pulled: boolean) => {
-    if (pulled ? session.release() : session.play()) flash([id])
+    // A click plucks the string and nothing else (Play instrument also throws a mallet, if the bar has one).
+    if (pulled ? session.release() : session.strikeBar(id)) flash([id])
     else setNotice(!state.running ? 'Start audio first.' : 'There is nothing to pluck yet.')
   }
   const [muting, setMuting] = useState(false)
@@ -251,7 +252,7 @@ export default function Builder() {
   const load01 = meter ? Math.min(1, Math.max(0, (20 * Math.log10(Math.max(meter.peakOfFullScale, 2.5e-5)) + 72) / 72)) : 0
   const pressure = meter?.unit === 'Pa'
   // How strongly the instrument is ringing, 0 to 1 over six decades of energy below a millijoule (a pluck is about half of one).
-  const ringing = meter && pressure ? Math.min(1, Math.max(0, 1 + Math.log10(Math.max(meter.engine.energy, 1e-12) / 1e-3) / 6)) : 0
+  const ringing = meter && hasString ? Math.min(1, Math.max(0, 1 + Math.log10(Math.max(meter.engine.energy, 1e-12) / 1e-3) / 6)) : 0
   const late = meter?.engine.slowBlocks ?? 0
   const cpu = meter && meter.engine.blocks ? (100 * meter.engine.busyMs) / ((meter.engine.blocks * 128 * 1000) / meter.sampleRate) : 0
 

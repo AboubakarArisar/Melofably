@@ -476,3 +476,8 @@ Load **A string on a damped box body**, press **Start audio**.
 9. **Softness.** Drag Pluck softness from 0 to 1 and pluck.
 10. **Tension while ringing**, Undo, Redo, reload the page (the instrument
     and its switch come back), and load a bar example and return.
+
+## 10. A string tied to a metal bar (Phase 3D.2)
+
+The same string can instead be tied to one metal bar by a spring, and is then heard through the bar. That instrument, its measurements and its limits are in [HYBRID.md](HYBRID.md). The string on its box, described above, is unchanged.
+

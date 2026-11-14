@@ -418,3 +418,8 @@ iterations. How they sound is for listening to decide.
 
 The builder can also hold one experimental instrument that is not made of bars: a string standing on a damped box body by a bridge. It has its own parts, its own example group and its own output (sound pressure, not bar velocity), and cannot yet share a canvas with bars. Everything in sections 1 to 10 about bars is unchanged, and the three bar examples are the same three. See [STRING_INSTRUMENT.md](STRING_INSTRUMENT.md).
 
+
+## 12. The first hybrid (Phase 3D.2)
+
+A string may also share a canvas with one metal bar and one mallet, tied to the bar by a spring. It is the only combination of a string and bars that is allowed. See [HYBRID.md](HYBRID.md).
+

@@ -6,6 +6,7 @@ import { barContactTime } from '../experimental/physics/bar.ts'
 import type { Mode } from '../experimental/physics/resonator.ts'
 import { STRING_PLUCK } from '../experimental/string/instrument.ts'
 import { bridgeSpring, buildPlayableStringBody, describeBody, fingerDamping, modesOfString, pluckCall, pullCalls, pullForce, radiation, releaseCalls, retriggerCalls, STRING_DENSITY, stringPitch, touchCall, type StringBody } from '../experimental/string/stringBody.ts'
+import { BAR_STRIKE, buildStringBar, jointSpring } from '../experimental/string/stringBar.ts'
 import { RAMP, type Call } from '../experimental/wasm/engine.ts'
 import { CAPACITY, isBody, isExciter, isResonator, isString, TYPES, validateGraph, type Component, type Graph, type Issue } from './graph.ts'
 
@@ -72,7 +73,21 @@ export interface Built {
    * The experimental string instrument, when the graph is one: the graph's identifiers, the engine's
    * resonator and port for plucking, its bridge connection, and how many string modes were built.
    */
-  stringBody?: { stringId: string; bodyId: string; string: number; pluckPort: number; bridge: number; joined: boolean; modes: number; /** The finger's damper (Phase 3D.1). */ finger: number }
+  stringBody?: {
+    stringId: string
+    /** What the string is joined to: the damped box, or (Phase 3D.2) a metal bar. */
+    bodyId: string
+    on: 'box' | 'bar'
+    string: number
+    pluckPort: number
+    bridge: number
+    joined: boolean
+    modes: number
+    /** The finger's damper (Phase 3D.1). */
+    finger: number
+  }
+  /** Engine port at which each bar is struck and heard, where it is not STRIKE_PORT (a bar a string is tied to). */
+  strikePorts?: Record<string, number>
   /** What the output is: the bars' velocities (m/s) or, for a string on a body, sound pressure (Pa). */
   output: 'velocity' | 'pressure'
 }
@@ -83,6 +98,7 @@ export type Translation = { ok: true; built: Built } | { ok: false; issues: Issu
 export function translate(graph: Graph, sampleRate: number): Translation {
   const issues = validateGraph(graph)
   if (issues.length) return { ok: false, issues }
+  if (graph.components.some(isString) && graph.components.some(isResonator)) return translateStringBar(graph, sampleRate)
   if (graph.components.some((c) => isString(c) || isBody(c))) return { ok: true, built: translateStringBody(graph, sampleRate) }
   const built: Built = { calls: [['reset', sampleRate, 2]], sampleRate, bars: {}, links: {}, mallets: {}, targets: {}, notes: [], output: 'velocity' }
   const { calls } = built
@@ -175,9 +191,55 @@ function translateStringBody(graph: Graph, sampleRate: number): Built {
   const system = buildPlayableStringBody(stringBodyOf(string, joined), sampleRate)
   const r = radiation(sampleRate)
   built.calls = [...system.calls, ['radiate', r.perSample, r.b0, r.b1, r.a1, PRESSURE_FULL_SCALE]]
-  built.stringBody = { stringId: string.id, bodyId: body.id, string: system.string, pluckPort: system.pluckPort, bridge: system.bridge, joined, modes: system.modes.strings[0], finger: system.finger }
+  built.stringBody = { stringId: string.id, bodyId: body.id, on: 'box', string: system.string, pluckPort: system.pluckPort, bridge: system.bridge, joined, modes: system.modes.strings[0], finger: system.finger }
   if (!joined) built.notes.push({ id: string.id, message: `${string.name} is not standing on ${body.name}: plucking moves the string, but nothing pushes the body, so there is nothing to hear. Drag from the string's dot to the body to add the bridge.` })
   return built
+}
+
+/** The joint between a string and a bar as the model takes it: a damper only if the connection has one. */
+const jointOf = (link: { type: string; stiffness: number; damping: number }) => ({ stiffness: link.stiffness, damping: link.type === 'springDamper' ? link.damping : 0 })
+
+/**
+ * The hybrid of Phase 3D.2: one string whose end is tied to one metal bar by a spring (and perhaps a
+ * damper), with at most one mallet for the bar. One engine system (src/experimental/string/stringBar.ts);
+ * each pushes the other through the joint. What is heard is the bar, as for every bar instrument: its
+ * velocity where it is struck. The string is heard through the bar and in no other way.
+ */
+function translateStringBar(graph: Graph, sampleRate: number): Translation {
+  const [string, bar] = [graph.components.find(isString)!, graph.components.find(isResonator)!]
+  const built: Built = { calls: [], sampleRate, bars: {}, links: {}, mallets: {}, targets: {}, notes: [], output: 'velocity' }
+  const modes = barModes(bar, sampleRate)
+  if (modes.length === 0) {
+    const lowest = barModeFrequencies({ length: bar.params.length, thickness: bar.params.thickness, ...TYPES[bar.type].materials![bar.material!] })[0]
+    return { ok: false, issues: [{ id: bar.id, message: `${bar.name} is too short and thick to sound: its lowest note would be ${Math.round(lowest)} Hz, above what can be played at ${sampleRate} Hz (${Math.round(HIGHEST_MODE * sampleRate)} Hz). Make it longer or thinner.` }] }
+  }
+  const link = graph.connections.find((c) => c.from === string.id && c.to === bar.id)
+  const mallet = graph.components.find((c) => c.type === 'mallet')
+  const struck = mallet && graph.connections.some((c) => c.type === 'strike' && c.from === mallet.id && c.to === bar.id)
+  const system = buildStringBar(
+    {
+      tension: string.params.tension,
+      length: string.params.length,
+      pluckAt: string.params.pluckPosition,
+      // The builder's bars carry their ports as [strike, connection]; the string model wants the joint first.
+      bar: modes.map((mode) => ({ ...mode, shape: [mode.shape[CONNECTION_PORT], mode.shape[STRIKE_PORT]] })),
+      joint: link ? jointOf(link) : null,
+      mallet: mallet && struck ? { mass: mallet.params.mass, stiffness: malletStiffness(mallet.params.hardness) } : undefined,
+      outputGain: OUTPUT_GAIN,
+    },
+    sampleRate,
+  )
+  built.calls = system.calls
+  built.bars[bar.id] = system.bar
+  built.strikePorts = { [bar.id]: BAR_STRIKE }
+  built.stringBody = { stringId: string.id, bodyId: bar.id, on: 'bar', string: system.string, pluckPort: system.pluckPort, bridge: system.joint, joined: !!link, modes: system.modes.string, finger: system.finger }
+  if (mallet && struck) {
+    built.mallets[mallet.id] = system.mallet!
+    built.targets[mallet.id] = bar.id
+  } else if (mallet) built.notes.push({ id: mallet.id, message: `${mallet.name} is not attached to a bar, so it does nothing. Drag from its dot to a bar.` })
+  if (!link) built.notes.push({ id: string.id, message: `${string.name} is not tied to ${bar.name}: plucking moves the string, but nothing reaches the bar, which is all that is heard. Drag from the string's dot to the bar to tie them with a spring.` })
+  if (modes.length < 8) built.notes.push({ id: bar.id, message: `${bar.name}: only its lowest ${modes.length} of 8 overtones are below the highest playable frequency; the rest are left out.` })
+  return { ok: true, built }
 }
 
 /**
@@ -205,7 +267,14 @@ export function liveCalls(before: Graph, after: Graph, built: Built): Call[] {
       // As turning a tuning peg: every mode of the string is retuned where it is, keeping its energy, and the
       // bridge spring's allowance for the string's missing modes follows.
       modesOfString(model, built.sampleRate).slice(0, part.modes).forEach((mode, n) => calls.push(['tune', part.string, n, mode.frequency, mode.t60]))
-      if (part.joined) calls.push(['setStiffness', part.bridge, bridgeSpring(model, built.sampleRate), RAMP, Math.round(STIFFNESS_GLIDE * built.sampleRate)])
+      if (part.joined && part.on === 'box') calls.push(['setStiffness', part.bridge, bridgeSpring(model, built.sampleRate), RAMP, Math.round(STIFFNESS_GLIDE * built.sampleRate)])
+    }
+    // Tied to a bar: the joint's spring and damper are the user's, and live. The spring the engine holds
+    // also carries the allowance for the string's missing modes, which follows the tension.
+    const [link, old] = [after.connections.find((c) => c.from === string.id), before.connections.find((c) => c.from === string.id)]
+    if (part.on === 'bar' && part.joined && link && old) {
+      if (old.stiffness !== link.stiffness || was.params.tension !== string.params.tension) calls.push(['setStiffness', part.bridge, jointSpring({ ...model, loss: undefined }, link.stiffness, built.sampleRate), RAMP, Math.round(STIFFNESS_GLIDE * built.sampleRate)])
+      if (jointOf(old).damping !== jointOf(link).damping) calls.push(['setDamping', part.bridge, jointOf(link).damping])
     }
     // The pluck point is only where the next pluck's force goes: moving it does not disturb the string.
     if (was.params.pluckPosition !== string.params.pluckPosition) modesOfString(model, built.sampleRate).slice(0, part.modes).forEach((mode, n) => calls.push(['setShape', part.string, STRING_PLUCK, n, mode.shape[STRING_PLUCK]]))
@@ -225,7 +294,7 @@ export function liveCalls(before: Graph, after: Graph, built: Built): Call[] {
   return calls
 }
 
-const impulse = (bar: number, velocity: number, hardness: number): Call => ['strike', bar, STRIKE_PORT, IMPULSE_AT_FULL_VELOCITY * velocity, barContactTime(hardness, velocity)]
+const impulse = (bar: number, velocity: number, hardness: number, port = STRIKE_PORT): Call => ['strike', bar, port, IMPULSE_AT_FULL_VELOCITY * velocity, barContactTime(hardness, velocity)]
 
 /** Calls that make one exciter strike. Empty if it is not attached. */
 export function exciterCalls(graph: Graph, built: Built, exciterId: string): Call[] {
@@ -237,23 +306,30 @@ export function exciterCalls(graph: Graph, built: Built, exciterId: string): Cal
 
 /** Calls that strike one bar: with every exciter attached to it, or a plain tap if it has none. */
 export function barCalls(graph: Graph, built: Built, barId: string): Call[] {
-  // The string or its body: pluck the string.
-  if (built.stringBody && (barId === built.stringBody.stringId || barId === built.stringBody.bodyId)) return instrumentCalls(graph, built)
+  // The string, or the box it stands on: pluck the string. (A bar the string is tied to is struck, as any bar is.)
+  if (built.stringBody && (barId === built.stringBody.stringId || (built.stringBody.on === 'box' && barId === built.stringBody.bodyId))) return pluckCalls(graph, built)
   if (!(barId in built.bars)) return []
   const exciters = Object.keys(built.targets).filter((id) => built.targets[id] === barId)
-  if (exciters.length === 0) return [impulse(built.bars[barId], 0.6, 0.6)]
+  if (exciters.length === 0) return [impulse(built.bars[barId], 0.6, 0.6, built.strikePorts?.[barId])]
   return exciters.flatMap((id) => exciterCalls(graph, built, id))
 }
 
-/** Calls that play the whole instrument: every attached exciter, or a tap on every bar if there are none. */
+/** Calls that pluck the string, as its own properties say. Empty if there is no string. */
+function pluckCalls(graph: Graph, built: Built): Call[] {
+  const string = built.stringBody && graph.components.find((c) => c.id === built.stringBody!.stringId)
+  if (!string) return []
+  const { pluckStrength, pluckSoftness, retrigger } = string.params
+  // Touch first, or add to what is there: the string's own property says which.
+  return retrigger ? retriggerCalls(built.stringBody!, string.params as { tension: number }, pluckStrength, pluckSoftness) : [pluckCall(built.stringBody!, pluckStrength, pluckSoftness)]
+}
+
+/**
+ * Calls that play the whole instrument: the string plucked and every attached exciter, or a tap on every
+ * bar if there is nothing to play it with.
+ */
 export function instrumentCalls(graph: Graph, built: Built): Call[] {
-  if (built.stringBody) {
-    const string = graph.components.find((c) => c.id === built.stringBody!.stringId)
-    if (!string) return []
-    const { pluckStrength, pluckSoftness, retrigger } = string.params
-    // Touch first, or add to what is there: the string's own property says which.
-    return retrigger ? retriggerCalls(built.stringBody, string.params as { tension: number }, pluckStrength, pluckSoftness) : [pluckCall(built.stringBody, pluckStrength, pluckSoftness)]
-  }
+  // A string plays by being plucked; a bar it is tied to is struck too if it has a mallet.
+  if (built.stringBody) return [...pluckCalls(graph, built), ...Object.keys(built.targets).flatMap((id) => exciterCalls(graph, built, id))]
   const exciters = Object.keys(built.targets)
   if (exciters.length) return exciters.flatMap((id) => exciterCalls(graph, built, id))
   return Object.keys(built.bars).flatMap((id) => barCalls(graph, built, id))

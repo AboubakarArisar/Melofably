@@ -407,7 +407,11 @@ describe('The builder around it', () => {
     expect(cannotAdd(graph, 'dampedBox')).toMatch(/one damped box body/)
     expect(cannotAdd(graph, 'metalBar')).toMatch(/cannot be added to a string instrument/)
     expect(cannotAdd(graph, 'mallet')).toMatch(/cannot be added to a string instrument/)
-    expect(cannotAdd(EXAMPLES[0].make(), 'steelString')).toMatch(/cannot share an instrument with bars/)
+    // Since Phase 3D.2 a string may join one metal bar and its mallet (the first bar example is exactly
+    // that); it still may not join two bars, or a wooden bar.
+    expect(cannotAdd(EXAMPLES[0].make(), 'steelString')).toBeNull()
+    expect(cannotAdd(EXAMPLES[1].make(), 'steelString')).toMatch(/cannot share an instrument with bars/)
+    expect(cannotAdd(EXAMPLES[2].make(), 'steelString')).toMatch(/cannot share an instrument with bars/)
     expect(cannotAdd(emptyGraph(), 'steelString')).toBeNull()
     expect(cannotAdd(EXAMPLES[0].make(), 'woodBar')).toBeNull()
     expect(cannotConnect(graph, stringOf(graph).id, bodyOf(graph).id)).toMatch(/already connected/)

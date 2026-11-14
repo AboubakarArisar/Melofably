@@ -201,10 +201,20 @@ function incompatible(a: Component | undefined, b: Component | undefined): strin
   if (isExciter(a) && isExciter(b)) return 'Two exciters cannot be connected: attach each one to a bar.'
   if (isStringPart(a) || isStringPart(b)) {
     if ((isString(a) && isBody(b)) || (isBody(a) && isString(b))) return null
-    return 'A string is joined only to a body, by its bridge. Bars, mallets and impulse strikes cannot be attached to a string or a body in this version.'
+    if (isStringAndMetalBar(a, b)) return null
+    return 'A string is joined to a damped box body by its bridge, or to one metal bar by a spring. Nothing else can be attached to a string or a body in this version.'
   }
   return null
 }
+
+/** The one hybrid this version allows (Phase 3D.2): a string and a metal bar, in either order. */
+const isStringAndMetalBar = (a: Component, b: Component) => (isString(a) && b.type === 'metalBar') || (a.type === 'metalBar' && isString(b))
+
+/**
+ * Whether the parts that are not a string or a body are ones a string may
+ * share an instrument with: at most one metal bar and at most one mallet.
+ */
+const besideAString = (types: ComponentType[]) => types.every((t) => t === 'metalBar' || t === 'mallet') && types.filter((t) => t === 'metalBar').length <= 1 && types.filter((t) => t === 'mallet').length <= 1
 
 /**
  * Whether a new connection between two components is allowed, as a reason it
@@ -224,15 +234,24 @@ export function cannotConnect(graph: Graph, aId: string, bId: string): string | 
 }
 
 /**
- * Why a component of this type cannot be added, or null if it can. The string
- * instrument is one string on one body, and does not share a canvas with bars.
+ * Why a component of this type cannot be added, or null if it can. A string
+ * makes one of two instruments: with a damped box body (and nothing else), or
+ * with one metal bar and at most one mallet (Phase 3D.2). Bars without a
+ * string are as free as they always were.
  */
 export function cannotAdd(graph: Graph, type: ComponentType): string | null {
   const part = (t: ComponentType) => TYPES[t].kind === 'string' || TYPES[t].kind === 'body'
+  const others = graph.components.filter((c) => !part(c.type)).map((c) => c.type)
+  const [hasString, hasBody] = [graph.components.some(isString), graph.components.some(isBody)]
   if (part(type)) {
-    if (graph.components.some((c) => !part(c.type))) return 'A string and its body cannot share an instrument with bars yet. Clear the canvas first, or load the string example.'
     if (graph.components.some((c) => c.type === type)) return `This version supports one ${TYPES[type].label.toLowerCase()} in an instrument.`
-  } else if (graph.components.some((c) => part(c.type))) return 'Bars, mallets and impulse strikes cannot be added to a string instrument yet.'
+    if (type === 'dampedBox' && others.length) return 'A string and its body cannot share an instrument with bars yet. Clear the canvas first, or load the string example.'
+    if (type === 'steelString' && !hasBody && !besideAString(others)) return 'A string cannot share an instrument with bars other than one metal bar and its mallet. Clear the canvas first, or load a string example.'
+    if (type === 'steelString' && hasBody && others.length) return 'A string and its body cannot share an instrument with bars yet. Clear the canvas first, or load the string example.'
+    return null
+  }
+  if (hasBody) return 'Bars, mallets and impulse strikes cannot be added to a string instrument yet.'
+  if (hasString && !besideAString([...others, type])) return 'A string can share an instrument with one metal bar and one mallet, and nothing else, in this version.'
   return null
 }
 
@@ -257,7 +276,9 @@ export function validateGraph(graph: Graph): Issue[] {
   const parts = graph.components.filter((c) => TYPES[c.type] && isStringPart(c))
   if (parts.filter(isString).length > 1) issues.push({ message: 'This version supports one string in an instrument.' })
   if (parts.filter(isBody).length > 1) issues.push({ message: 'This version supports one body in an instrument.' })
-  if (parts.length && graph.components.some((c) => TYPES[c.type] && !isStringPart(c))) issues.push({ message: 'A string and its body cannot share an instrument with bars, mallets or impulse strikes yet.' })
+  const beside = graph.components.filter((c) => TYPES[c.type] && !isStringPart(c)).map((c) => c.type)
+  if (parts.some(isBody) && beside.length) issues.push({ message: 'A string and its body cannot share an instrument with bars, mallets or impulse strikes yet.' })
+  else if (parts.length && !besideAString(beside)) issues.push({ message: 'A string can share an instrument with one metal bar and one mallet, and nothing else, in this version.' })
   const strikers = new Set<string>()
   const pairs = new Set<string>()
   let used = 0
@@ -277,6 +298,14 @@ export function validateGraph(graph: Graph): Issue[] {
     }
     if (link.type === 'bridge') {
       if (!isString(a!) || !isBody(b!)) issues.push({ id: link.id, message: `${who}: a bridge goes from a string to a body.` })
+    } else if (isStringAndMetalBar(a!, b!)) {
+      // The string's end is free until something holds it: the joint needs a spring. A damper may be added to it.
+      if (!isString(a!)) issues.push({ id: link.id, message: `${who}: the connection goes from the string to the bar.` })
+      if (link.type !== 'spring' && link.type !== 'springDamper') issues.push({ id: link.id, message: `${who}: the end of a string must be held by a spring: choose Spring, or Spring and damper.` })
+      else {
+        checkNumber(issues, link.id, who, CONNECTION_PARAMS.stiffness, link.stiffness)
+        if (link.type === 'springDamper') checkNumber(issues, link.id, who, CONNECTION_PARAMS.damping, link.damping)
+      }
     } else if (isStringPart(a!) || isStringPart(b!)) {
       issues.push({ id: link.id, message: `${who}: a string and a body are joined by a bridge, not by a ${CONNECTION_LABELS[link.type].toLowerCase()}.` })
     } else if (link.type === 'strike') {
@@ -338,11 +367,13 @@ export function connect(graph: Graph, aId: string, bId: string): { graph: Graph;
   const [a, b] = [component(graph, aId)!, component(graph, bId)!]
   const id = `c${graph.nextId}`
   const strike = isExciter(a) || isExciter(b)
-  const bridge = isStringPart(a)
   const [from, to] = isExciter(b) || isString(b) ? [bId, aId] : [aId, bId]
-  const added: Connection = bridge
-    ? { id, type: 'bridge', from, to, stiffness: BRIDGE_STIFFNESS, damping: 0 }
-    : { id, type: strike ? 'strike' : 'springDamper', from, to, stiffness: CONNECTION_PARAMS.stiffness.initial, damping: CONNECTION_PARAMS.damping.initial }
+  const added: Connection = isStringAndMetalBar(a, b)
+    ? // A spring as stiff as the box's bridge, so that the string keeps its pitch; softer or damped is the user's to try.
+      { id, type: 'spring', from, to, stiffness: BRIDGE_STIFFNESS, damping: 0 }
+    : isStringPart(a)
+      ? { id, type: 'bridge', from, to, stiffness: BRIDGE_STIFFNESS, damping: 0 }
+      : { id, type: strike ? 'strike' : 'springDamper', from, to, stiffness: CONNECTION_PARAMS.stiffness.initial, damping: CONNECTION_PARAMS.damping.initial }
   return { graph: { ...graph, nextId: graph.nextId + 1, connections: [...graph.connections, added] }, id }
 }
 

@@ -674,8 +674,8 @@ async function stringBench() {
  * offline through this browser's AudioWorklet. Returns a few numbers that analysis/render-string-body.ts
  * computes the same way in Node: if the two agree, the browser plays what was tested.
  */
-async function integrated() {
-  const graph = STRING_EXAMPLES[0].make()
+async function integrated(example = 0) {
+  const graph = STRING_EXAMPLES[example].make()
   const translation = translate(graph, 48000)
   if (!translation.ok) throw new Error('the string example does not translate')
   const ctx = new OfflineAudioContext(1, Math.round(2.2 * 48000), 48000)
@@ -687,7 +687,8 @@ async function integrated() {
     peak = Math.max(peak, Math.abs(v))
     sum += v * v
   }
-  return { fullScalePa: PRESSURE_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
+  // The first example's output is pascals / fullScalePa; the second's (the string on a bar) is the bar's velocity in m/s times OUTPUT_GAIN.
+  return { example: STRING_EXAMPLES[example].id, fullScalePa: PRESSURE_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
 }
 
 // ---- Wiring ---------------------------------------------------------------------------

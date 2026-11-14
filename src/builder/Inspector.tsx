@@ -257,35 +257,55 @@ function ConnectionPanel({ graph, link, onConnection, onParam, onRemove }: Props
       </Panel>
     )
   const strike = link.type === 'strike'
+  // A string tied to a bar (Phase 3D.2): its end is held by the spring, so the joint is never a damper alone.
+  const tied = isString(from)
   const point = (bar: Component, key: 'strikePosition' | 'connectionPosition') => {
     const spec = TYPES[bar.type].params.find((p) => p.key === key)!
     return <Field key={`${bar.id}-${key}`} spec={{ ...spec, key: `${bar.id}-${key}`, label: `Point on ${bar.name}`, hint: '0 and 1 are the ends of the bar, 0.5 its middle. Shared by everything attached there.' }} value={bar.params[key]} onChange={(v) => onParam(bar.id, key, v)} />
   }
   return (
-    <Panel title={strike ? `${from.name} strikes ${to.name}` : `${from.name} joined to ${to.name}`}>
+    <Panel title={strike ? `${from.name} strikes ${to.name}` : tied ? `${from.name} tied to ${to.name}` : `${from.name} joined to ${to.name}`}>
       {strike ? (
         <p className="mb-3 text-sm text-neutral-400">The exciter hits the bar at the bar's strike position. How hard and how fast are properties of the exciter.</p>
       ) : (
         <>
-          <p className="mb-3 text-sm text-neutral-400">A physical link: each bar pushes and pulls the other through it. This is not two sounds added together.</p>
+          <p className="mb-3 text-sm text-neutral-400">
+            {tied
+              ? 'The end of the string is held by this spring, whose other end is on the bar. The string pulls the bar through it and the bar pulls the string: energy goes both ways. Only the bar is heard, so the string is heard through the bar. A soft spring lets the end of the string give, which lowers its pitch.'
+              : 'A physical link: each bar pushes and pulls the other through it. This is not two sounds added together.'}
+          </p>
           <div className="mb-3">
             <label htmlFor="link-type" className="text-sm text-neutral-200">
               Kind <span className="text-amber-300" title="Changing this rebuilds the instrument: its sound restarts.">↻</span>
             </label>
             <select id="link-type" value={link.type} onChange={(e) => onConnection(link.id, { type: e.target.value as ConnectionType })} className="mt-1 block w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-sm text-neutral-100">
-              {(['spring', 'damper', 'springDamper'] as const).map((type) => (
+              {(tied ? (['spring', 'springDamper'] as const) : (['spring', 'damper', 'springDamper'] as const)).map((type) => (
                 <option key={type} value={type}>
                   {CONNECTION_LABELS[type]}
                 </option>
               ))}
             </select>
           </div>
-          {link.type !== 'damper' && <Field key={`${link.id}-stiffness`} spec={CONNECTION_PARAMS.stiffness} value={link.stiffness} onChange={(stiffness) => onConnection(link.id, { stiffness })} />}
-          {link.type !== 'spring' && <Field key={`${link.id}-damping`} spec={CONNECTION_PARAMS.damping} value={link.damping} onChange={(damping) => onConnection(link.id, { damping })} />}
+          {link.type !== 'damper' && (
+            <Field
+              key={`${link.id}-stiffness`}
+              spec={tied ? { ...CONNECTION_PARAMS.stiffness, hint: 'How firmly the end of the string is held. At a million N/m and above the string keeps its pitch; at ten thousand it is a fifth of a semitone flat; softer still and the string is hardly tied at all.' } : CONNECTION_PARAMS.stiffness}
+              value={link.stiffness}
+              onChange={(stiffness) => onConnection(link.id, { stiffness })}
+            />
+          )}
+          {link.type !== 'spring' && (
+            <Field
+              key={`${link.id}-damping`}
+              spec={tied ? { ...CONNECTION_PARAMS.damping, hint: 'Friction in the joint. It takes energy from both. Beside a stiff spring it has little to work on; it does more beside a soft one.' } : CONNECTION_PARAMS.damping}
+              value={link.damping}
+              onChange={(damping) => onConnection(link.id, { damping })}
+            />
+          )}
         </>
       )}
       <h3 className="mb-2 mt-1 text-sm font-semibold text-neutral-200">Connection points</h3>
-      {strike ? point(to, 'strikePosition') : [point(from, 'connectionPosition'), point(to, 'connectionPosition')]}
+      {strike ? point(to, 'strikePosition') : tied ? point(to, 'connectionPosition') : [point(from, 'connectionPosition'), point(to, 'connectionPosition')]}
       <button className={button} onClick={onRemove}>
         Remove connection
       </button>

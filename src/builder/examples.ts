@@ -53,4 +53,21 @@ export const EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
  * Experimental instruments that are not made of bars. Kept apart from EXAMPLES: those three are the
  * approved bar examples, and everything that is checked for every bar example runs over that list.
  */
-export const STRING_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [{ id: 'string', label: 'A string on a damped box body', make: stringOnBox }]
+/**
+ * Phase 3D.2: one string whose end is tied by a spring to one metal bar, with a mallet for the bar.
+ * The bar is 0.40 m long, which puts its lowest note (327 Hz) beside the string's third harmonic
+ * (330 Hz): tuned like that, each takes a useful share of the other's energy. The string is plucked a
+ * little harder than on the box, because a bar is a quieter thing to drive than a soundboard.
+ */
+function stringOnBar(): Graph {
+  const string = place(emptyGraph(), 'steelString', 330, 170, { pluckStrength: 4 })
+  const bar = place(string.graph, 'metalBar', 560, 330, { length: 0.4 })
+  const mallet = place(bar.graph, 'mallet', 760, 200)
+  const struck = connect(mallet.graph, mallet.id, bar.id).graph
+  return connect(struck, string.id, bar.id).graph
+}
+
+export const STRING_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
+  { id: 'string', label: 'A string on a damped box body', make: stringOnBox },
+  { id: 'string-bar', label: 'A string tied to a metal bar', make: stringOnBar },
+]
