@@ -17,8 +17,8 @@
 // given extra ports on the bar, which touch nothing mechanical.
 import type { Component, Graph } from '../src/builder/graph.ts'
 import { barModes, instrumentCalls, OUTPUT_GAIN, translate } from '../src/builder/translate.ts'
-import { freeBarShape, modeTransfer, radiationWeights, type BarGeometry, type Complex, type Listener } from '../src/experimental/radiation/barRadiation.ts'
-import type { Call } from '../src/experimental/wasm/engine.ts'
+import { freeBarShape, modeTransfer, pointAt, RADIATOR_POINTS, radiationWeights, radiatorCalls, radiatorDelay, type BarGeometry, type Complex, type Listener } from '../src/experimental/radiation/barRadiation.ts'
+import { outputBuffer, type Call } from '../src/experimental/wasm/engine.ts'
 import { SR } from './lib.ts'
 import { createWorklet } from './worklet.ts'
 
@@ -253,6 +253,40 @@ export function pressureByPoints(points: Float64Array[], geometry: BarGeometry, 
     for (let i = whole + 1; i < samples; i++) out[i] += (1 - part) * signal[i - whole] + part * signal[i - whole - 1]
   })
   return { pressure: Float32Array.from(out), delay }
+}
+
+/**
+ * Phase 3D.4. Sound pressure, Pa, by the real-time radiator: the bar's
+ * velocity at 16 points as engine taps, turned into pressure by the
+ * AudioWorklet processor's 'radiator', block by block as a browser does it.
+ * Late by `delay` seconds, as pressureByPoints() is. `output` is what the
+ * engine's own (first) output was during the same run, as the node would
+ * have carried it without the radiator.
+ */
+export async function pressureByRadiator(o: Radiating, fullScale = FULL_SCALE, points = RADIATOR_POINTS): Promise<{ pressure: Float32Array; output: Float32Array; delay: number; energy: Float64Array }> {
+  const b = built(o)
+  const geometry = geometryOf(o.bar)
+  const count = frequenciesOf(o.bar).length
+  const shapes = Array.from({ length: points }, (_, j) => Array.from({ length: count }, (_, n) => freeBarShape(n)(pointAt(j, points))))
+  const { calls, first } = withPorts(b.calls, b.resonator, shapes)
+  const worklet = await createWorklet([...calls, ...radiatorCalls(geometry, o.listener, b.resonator, first, SR, fullScale, points)])
+  worklet.send(b.play)
+  const samples = Math.round(o.seconds * SR)
+  const output = new Float32Array(samples)
+  const energy = new Float64Array(Math.ceil(samples / 128))
+  const own = outputBuffer(worklet.engine)
+  // The engine's own output is read after each block; while a force is applied the processor steps it a
+  // sample at a time and only the block's last sample is left there, so `output` is whole only for strikes.
+  let at = 0
+  const pressure = new Float32Array(samples)
+  for (let block = 0; at < samples; block++, at += 128) {
+    const part = worklet.render(Math.min(128, samples - at))
+    pressure.set(part.map((v) => v * fullScale), at)
+    output.set(own.subarray(0, part.length), at)
+    energy[block] = worklet.engine.energy()
+  }
+  if (worklet.engine.faults()) throw new Error('engine fault')
+  return { pressure, output, delay: radiatorDelay(geometry), energy }
 }
 
 /** Level of the spectral peak nearest `frequency` (within 3 %), as an amplitude, from `from` samples on. */

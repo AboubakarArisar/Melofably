@@ -8,6 +8,8 @@ export interface EngineReport {
   blocks: number
   busyMs: number
   slowBlocks: number
+  /** The longest single block since the node was made, ms (to the clock's 1 ms). */
+  worstBlockMs: number
   faults: number
   worstIterations: number
   memoryBytes: number

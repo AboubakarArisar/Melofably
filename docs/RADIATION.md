@@ -399,3 +399,7 @@ Not recommended yet: replacing any approved output; a glass radiation model
 8. **Performance was measured on one machine**; the browser pane was in the
    background.
 9. **Not heard.**
+
+## 12. What came of it (Phase 3D.4)
+
+The engine now has read-only observation points, and the 16-point method of section 6 runs in the AudioWorklet processor on them, as an optional output stage used by one experimental builder example. See [RADIATOR.md](RADIATOR.md). One thing was found about this prototype there: `pressureByPoints` leaves out the very first sample of motion, which matters only in the first two milliseconds after a mallet's stroke (-47 dB). It has been left as it was, as the reference the real-time version was checked against.

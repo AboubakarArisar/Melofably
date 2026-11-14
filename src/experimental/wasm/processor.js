@@ -42,13 +42,30 @@
 //     with another force it moves there; asked with 0 and a high cutoff it
 //     lets go, which is a pluck.
 //
+// Phase 3D.4 (experimental radiation):
+//
+//   ['radiator', fullScale, b0, a1, tap, far, near, late, tap, far, near, late, ...]
+//     Sound pressure from the velocities of several points of a bar, each an
+//     engine tap (addTap) and each a dipole: per point and per sample
+//       a   = rate (v[n] - v[n-1])                 acceleration, m/s^2
+//       low = b0 (a[n] + a[n-1]) - a1 low[n-1]     one-pole lowpass at the crossover
+//       s   = far (a - low) + near a               Pa
+//     and s reaches the listener `late` samples later (a whole number and a
+//     fraction, shared between two neighbouring samples). The node's output
+//     is the sum / fullScale, in place of the engine's own output, which the
+//     engine still computes unchanged. The numbers come from radiatorCall()
+//     in src/experimental/radiation/barRadiation.ts. Nothing is normalized.
+//
 // While any force is being applied the engine is stepped one sample at a
-// time; while a touch is changing, sixteen at a time.
+// time; while a touch is changing, sixteen at a time; with a radiator, at
+// most 128 at a time (the engine keeps 128 samples of each tap).
 
 /* global AudioWorkletProcessor, registerProcessor */
 
 const PLUCK = 9 // numbers kept per pluck
 const PLUCKS = 8 * PLUCK
+const POINT = 9 // numbers kept per radiating point
+const TAP_BLOCK = 128 // samples of each tap the engine keeps (assembly/engine.ts)
 
 class PhysicsProcessor extends AudioWorkletProcessor {
   constructor(options) {
@@ -56,8 +73,8 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     const { bytes, calls, measure } = options.processorOptions
     this.alive = true
     this.measure = measure === true
-    // [blocks, milliseconds spent in process(), blocks that took 2 ms or more]
-    this.stats = new Float64Array(3)
+    // [blocks, milliseconds spent in process(), blocks that took 2 ms or more, the longest block in ms]
+    this.stats = new Float64Array(4)
     // Plucks, 9 numbers each: samples left, resonator, port, force, lowpass pole, the three numbers the
     // force's filters remember, and samples still to wait before it starts. Room for 8 at once; a ninth
     // takes over the oldest.
@@ -72,11 +89,20 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     this.touch = new Float64Array(9)
     // Hold: [on, resonator, port, force wanted, lowpass pole, and the two numbers its filters remember].
     this.hold = new Float64Array(7)
+    // Radiator: off while there are no points. Per point: [tap, far, near, whole samples late, fraction,
+    // 1 - fraction, previous velocity, previous acceleration, previous lowpass]. `air` is the sound on its
+    // way to the listener: a ring of pascals, read and cleared at `now`, written ahead of it.
+    this.points = new Float64Array(0)
+    this.radiator = new Float64Array(4) // [rate, b0, a1, 1 / fullScale]
+    this.air = new Float64Array(1)
+    this.now = 0
     this.engine = null
     try {
       this.engine = new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports
       this.run(calls)
       this.samples = new Float32Array(this.engine.memory.buffer, this.engine.outputPointer(), 4096)
+      // (An engine built before Phase 3D.4 has no taps; it is still run by the regression tests.)
+      this.taps = this.engine.tapPointer ? new Float64Array(this.engine.memory.buffer, this.engine.tapPointer(), 32 * TAP_BLOCK) : null
       this.port.postMessage({ ready: true })
     } catch (error) {
       this.engine = null
@@ -97,6 +123,7 @@ class PhysicsProcessor extends AudioWorkletProcessor {
           blocks: this.stats[0],
           busyMs: this.stats[1],
           slowBlocks: this.stats[2],
+          worstBlockMs: this.stats[3],
           faults: this.engine.faults(),
           worstIterations: this.engine.worstIterations(),
           memoryBytes: this.engine.memory.buffer.byteLength,
@@ -136,6 +163,23 @@ class PhysicsProcessor extends AudioWorkletProcessor {
         } else h.set([1, args[0], args[1], args[2], pole, 0, 0])
         continue
       }
+      if (name === 'radiator') {
+        // Between blocks: the only place the radiator's memory is made.
+        const count = (args.length - 3) / 4
+        this.points = new Float64Array(count * POINT)
+        let longest = 0
+        for (let j = 0; j < count; j++) {
+          const [tap, far, near, late] = args.slice(3 + 4 * j, 7 + 4 * j)
+          const whole = Math.floor(late)
+          this.points.set([tap, far, near, whole, late - whole, 1 - (late - whole)], j * POINT)
+          longest = Math.max(longest, whole)
+        }
+        this.radiator.set([this.rate, args[1], args[2], 1 / args[0]])
+        // Room for a whole block written ahead of the block being read, and for the longest travel time.
+        this.air = new Float64Array(2 ** Math.ceil(Math.log2(TAP_BLOCK + longest + 2)))
+        this.now = 0
+        continue
+      }
       if (name === 'reset') {
         // A new system: nothing of the old one's plucks, fingers or radiation carries over.
         this.rate = args[0]
@@ -144,6 +188,7 @@ class PhysicsProcessor extends AudioWorkletProcessor {
         this.rad.fill(0)
         this.touch.fill(0)
         this.hold.fill(0)
+        this.points = new Float64Array(0)
       }
       const fn = this.engine[name]
       if (typeof fn !== 'function') throw new Error(`unknown engine call "${name}"`)
@@ -183,6 +228,48 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     }
   }
 
+  /** The radiator's pressure for the `n` samples the engine has just made, into `first` from `offset`. */
+  radiate(first, offset, n) {
+    const { points, taps, air } = this
+    const rate = this.radiator[0]
+    const b0 = this.radiator[1]
+    const a1 = this.radiator[2]
+    const scale = this.radiator[3]
+    const mask = air.length - 1
+    for (let p = 0; p < points.length; p += POINT) {
+      const at = points[p] * TAP_BLOCK
+      const far = points[p + 1]
+      const near = points[p + 2]
+      const whole = points[p + 3]
+      const part = points[p + 4]
+      const rest = points[p + 5]
+      let v1 = points[p + 6]
+      let x1 = points[p + 7]
+      let y1 = points[p + 8]
+      for (let j = 0; j < n; j++) {
+        const v = taps[at + j]
+        const a = (v - v1) * rate
+        v1 = v
+        const low = b0 * (a + x1) - a1 * y1
+        x1 = a
+        y1 = low
+        const s = far * (a - low) + near * a
+        const arrives = this.now + j + whole
+        air[arrives & mask] += rest * s
+        air[(arrives + 1) & mask] += part * s
+      }
+      points[p + 6] = v1
+      points[p + 7] = x1
+      points[p + 8] = y1
+    }
+    for (let j = 0; j < n; j++) {
+      const slot = (this.now + j) & mask
+      first[offset + j] = air[slot] * scale
+      air[slot] = 0
+    }
+    this.now = (this.now + n) & mask
+  }
+
   process(_inputs, outputs) {
     const engine = this.engine
     if (!engine) return this.alive // silence; the error was already reported
@@ -196,7 +283,8 @@ class PhysicsProcessor extends AudioWorkletProcessor {
     const p = this.plucks
     const t = this.touch
     const h = this.hold
-    if (this.livePlucks === 0 && t[0] === 0 && h[0] === 0) {
+    const radiating = this.points.length > 0
+    if (this.livePlucks === 0 && t[0] === 0 && h[0] === 0 && !radiating) {
       engine.process(count)
       for (let i = 0; i < count; i++) first[i] = samples[i]
     } else {
@@ -214,6 +302,7 @@ class PhysicsProcessor extends AudioWorkletProcessor {
         }
         if (t[0] === 1 || t[0] === 3) n = Math.min(n, 16)
         else if (t[0] === 2 && t[7] >= 0) n = Math.min(n, Math.max(1, t[7] - t[5]))
+        if (radiating && n > TAP_BLOCK) n = TAP_BLOCK
         if (forcing) n = 1
         if (t[0] !== 0) this.touching(n)
         for (let s = 0; s < PLUCKS; s += PLUCK) {
@@ -237,7 +326,8 @@ class PhysicsProcessor extends AudioWorkletProcessor {
           if (h[3] === 0 && Math.abs(h[5]) < 1e-12 && Math.abs(h[6]) < 1e-12) h[0] = 0
         }
         engine.process(n)
-        for (let j = 0; j < n; j++) first[i + j] = samples[j]
+        if (radiating) this.radiate(first, i, n)
+        else for (let j = 0; j < n; j++) first[i + j] = samples[j]
         i += n
       }
     }
@@ -263,6 +353,7 @@ class PhysicsProcessor extends AudioWorkletProcessor {
       this.stats[0] += 1
       this.stats[1] += took
       if (took >= 2) this.stats[2] += 1
+      if (took > this.stats[3]) this.stats[3] = took
     }
     return this.alive
   }

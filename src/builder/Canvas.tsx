@@ -2,7 +2,7 @@
 // their body, and connected by dragging from a component's dot to another
 // component. Everything drawn here is read from the graph.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { cannotConnect, CONNECTION_LABELS, isBody, isExciter, isString, TYPES, type Component, type ConnectionType, type Graph } from './graph.ts'
+import { cannotConnect, CONNECTION_LABELS, isBody, isExciter, isListener, isString, TYPES, type Component, type ConnectionType, type Graph } from './graph.ts'
 import { CANVAS, componentAt, ends, EXCITER_RADIUS, handle, HANDLE_REACH, onHandle, playPoint, PULL_LIMIT, PULL_SCALE, PULL_STARTS, rectSize, strikePoint, STRING_GRIP, zigzag, type Point } from './shapes.ts'
 
 export type Selection = { kind: 'component' | 'connection'; id: string } | null
@@ -36,7 +36,7 @@ type Drag =
   | { kind: 'pull'; id: string; position: number; from: number; across: number; force: number | null; pulled: boolean }
   | null
 
-const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9', steelString: '#e6e9ee', dampedBox: '#b98d58' }
+const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9', steelString: '#e6e9ee', dampedBox: '#b98d58', listener: '#9fd6c1' }
 /** Excitation is drawn in amber, physical links between bars in teal: two different things, two different colours. */
 const STRIKE_COLOR = '#f0b44c'
 const LINK_COLOR = '#6fd6c9'
@@ -88,7 +88,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
     lastPress.current = { id: c.id, time: now }
     const p = local(e)
     // On or near the dot: start a connection. Anywhere else on it: move it.
-    setDrag(onHandle(c, p) ? { kind: 'link', from: c.id, at: p } : { kind: 'move', id: c.id, dx: p.x - c.x, dy: p.y - c.y })
+    setDrag(onHandle(c, p) && !isListener(c) ? { kind: 'link', from: c.id, at: p } : { kind: 'move', id: c.id, dx: p.x - c.x, dy: p.y - c.y })
   }
   const move = (e: PointerEvent) => {
     if (!drag) return
@@ -228,7 +228,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 onKeyDown={(e) => keys(e, c)}
                 onPointerDown={(e) => press(e, c)}
               >
-                <title>{isString(c) ? 'Click the string to pluck it there. Drag across it and let go to pull it aside and release it. Drag its left end to move it.' : `${TYPES[c.type].description} Double-click to ${isBody(c) ? 'pluck the string' : 'strike'}.`}</title>
+                <title>{isString(c) ? 'Click the string to pluck it there. Drag across it and let go to pull it aside and release it. Drag its left end to move it.' : `${TYPES[c.type].description} Double-click to ${isBody(c) ? 'pluck the string' : isListener(c) ? 'play the instrument' : 'strike'}.`}</title>
                 {isString(c) && size ? (
                   (() => {
                     const [left, right] = [c.x - size.w / 2, c.x + size.w / 2]
@@ -269,19 +269,23 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                   <>
                     <circle className="body" cx={c.x} cy={c.y} r={EXCITER_RADIUS} fill={FILL[c.type]} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={offered ? '6 4' : undefined} />
                     <text x={c.x} y={c.y + 5} textAnchor="middle" fontSize="13" fontWeight="600" fill="#111418" pointerEvents="none">
-                      {c.type === 'mallet' ? 'mallet' : 'pulse'}
+                      {c.type === 'mallet' ? 'mallet' : isListener(c) ? 'ear' : 'pulse'}
                     </text>
                   </>
                 )}
                 <text x={c.x} y={size ? c.y - size.h / 2 - 16 : c.y - EXCITER_RADIUS - 8} textAnchor="middle" fontSize="13" fill="#c9d1d9" pointerEvents="none">
                   {c.name}
                 </text>
-                {/* The dot connections are dragged from, with a generous invisible area around it. */}
-                <circle data-handle={c.id} cx={dot.x} cy={dot.y} r={HANDLE_REACH} fill="transparent" className="cursor-crosshair">
-                  <title>Drag from here to another component to connect them</title>
-                </circle>
-                <circle cx={dot.x} cy={dot.y} r="9" fill="#111418" stroke={size ? LINK_COLOR : STRIKE_COLOR} strokeWidth="2.5" pointerEvents="none" />
-                <circle cx={dot.x} cy={dot.y} r="3" fill={size ? LINK_COLOR : STRIKE_COLOR} pointerEvents="none" />
+                {/* The dot connections are dragged from, with a generous invisible area around it. A listener has none: nothing is tied to it. */}
+                {!isListener(c) && (
+                  <>
+                    <circle data-handle={c.id} cx={dot.x} cy={dot.y} r={HANDLE_REACH} fill="transparent" className="cursor-crosshair">
+                      <title>Drag from here to another component to connect them</title>
+                    </circle>
+                    <circle cx={dot.x} cy={dot.y} r="9" fill="#111418" stroke={size ? LINK_COLOR : STRIKE_COLOR} strokeWidth="2.5" pointerEvents="none" />
+                    <circle cx={dot.x} cy={dot.y} r="3" fill={size ? LINK_COLOR : STRIKE_COLOR} pointerEvents="none" />
+                  </>
+                )}
                 {struck.ids.includes(c.id) && hit && <circle key={struck.n} className="struck" cx={hit.x} cy={hit.y} r="16" fill="none" stroke="#fff" strokeWidth="3" pointerEvents="none" />}
               </g>
             )

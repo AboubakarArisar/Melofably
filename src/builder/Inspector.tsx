@@ -2,8 +2,9 @@
 // properties of the selected component or connection, in plain words.
 import { useState, type ReactNode } from 'react'
 import type { Selection } from './Canvas.tsx'
-import { BRIDGE_STIFFNESS, cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isBody, isResonator, isString, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
-import { describeBar, describeBody, describeFinger, describeString } from './translate.ts'
+import { RADIATOR_POINTS } from '../experimental/radiation/barRadiation.ts'
+import { BRIDGE_STIFFNESS, cannotConnect, CONNECTION_LABELS, CONNECTION_PARAMS, isBody, isListener, isResonator, isString, parseEntry, TYPES, type Component, type Connection, type ConnectionType, type Graph, type ParamSpec } from './graph.ts'
+import { describeBar, describeBody, describeFinger, describeString, LISTENER, LISTENER_FULL_SCALE } from './translate.ts'
 
 interface Props {
   graph: Graph
@@ -165,9 +166,10 @@ function ComponentPanel({ graph, item, sampleRate, running, onParam, onMaterial,
       )}
       {isString(item) && Object.values(item.params).every(Number.isFinite) && <StringFacts item={item} sampleRate={sampleRate} />}
       {isBody(item) && <BodyFacts />}
+      {isListener(item) && <ListenerFacts />}
       <div className="flex flex-wrap gap-2">
         <button className={button} disabled={!running} onClick={() => onStrike(item.id)} title={running ? undefined : 'Start audio first'}>
-          {isString(item) || isBody(item) ? 'Pluck the string' : isResonator(item) ? 'Strike this bar' : 'Strike now'}
+          {isString(item) || isBody(item) ? 'Pluck the string' : isListener(item) ? 'Play instrument' : isResonator(item) ? 'Strike this bar' : 'Strike now'}
         </button>
         <button className={button} onClick={onRemove}>
           Remove
@@ -214,6 +216,21 @@ function StringFacts({ item, sampleRate }: { item: Component; sampleRate: number
       </dl>
       <p className="mb-3 text-xs text-neutral-400">
         The pitch is that of the string between two fixed ends. On the body it is within a few cents of this. On the canvas: click the string to pluck it there; drag across it and let go to pull it aside and release it. Hold M (or the Hold to mute button) to rest a finger on it: the finger is a damper where the string is plucked, as strong as takes the most from the string (twice its wave impedance), so it cannot quiet an overtone that does not move there.
+      </p>
+    </>
+  )
+}
+
+function ListenerFacts() {
+  return (
+    <>
+      <dl className={facts}>
+        <Fact name="Where">{`${LISTENER.distance} m from the bar's middle, ${LISTENER.angle}° off its face`}</Fact>
+        <Fact name="Heard through">{`${RADIATOR_POINTS} points along the bar`}</Fact>
+        <Fact name="Loudest it can carry">{`${LISTENER_FULL_SCALE} Pa (${(20 * Math.log10(LISTENER_FULL_SCALE / Math.SQRT2 / 2e-5)).toFixed(0)} dB SPL)`}</Fact>
+      </dl>
+      <p className="mb-3 text-xs text-neutral-400">
+        Experimental. Each of the points is a short piece of the bar pushing on the air; their sounds are added where the listener is, each with its own distance, direction and travel time. Open, still air: no room, no floor. The pressure is a model's and has not been checked against a microphone. Nothing about the bar or the string changes: remove the listener and the bar is heard as before, by its velocity. A string moves the bar slowly and a slow bar moves little air, so plucking is much quieter here than striking.
       </p>
     </>
   )

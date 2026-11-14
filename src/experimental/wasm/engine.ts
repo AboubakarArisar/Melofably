@@ -18,6 +18,8 @@ export interface Engine {
   process(count: number): void
   silence(): void
   outputPointer(): number
+  addTap(r: number, port: number): number
+  tapPointer(): number
   strike(r: number, port: number, impulse: number, contact: number): void
   launch(k: number, velocity: number): void
   setStiffness(k: number, stiffness: number, policy: number, samples: number): void
@@ -51,9 +53,10 @@ export const MAX_BLOCK = 4096
 /**
  * Calls answered by the AudioWorklet processor itself, not by the engine (processor.js): a plucking
  * force over many samples, the conversion of the engine's output to sound pressure, a finger's touch
- * (a damper brought on and taken off) and a finger's pull (a held force, let go).
+ * (a damper brought on and taken off), a finger's pull (a held force, let go), and the sound pressure
+ * radiated by several tapped points of a bar (Phase 3D.4).
  */
-export type HostCall = 'pluck' | 'radiate' | 'touch' | 'hold'
+export type HostCall = 'pluck' | 'radiate' | 'touch' | 'hold' | 'radiator'
 
 /** One call of an engine function (or of the processor), as data: what is sent to the AudioWorklet. */
 export type Call = [name: Exclude<keyof Engine, 'memory'> | HostCall, ...args: number[]]
@@ -63,7 +66,7 @@ export const instantiate = (bytes: BufferSource): Engine =>
 
 export function run(engine: Engine, calls: Call[]): void {
   for (const [name, ...args] of calls) {
-    if (name === 'pluck' || name === 'radiate' || name === 'touch' || name === 'hold') throw new Error(`"${name}" is answered by the audio processor: run these calls through it (analysis/worklet.ts in Node)`)
+    if (name === 'pluck' || name === 'radiate' || name === 'touch' || name === 'hold' || name === 'radiator') throw new Error(`"${name}" is answered by the audio processor: run these calls through it (analysis/worklet.ts in Node)`)
     ;(engine[name] as (...a: number[]) => unknown)(...args)
   }
 }

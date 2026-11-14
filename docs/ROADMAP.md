@@ -128,6 +128,12 @@ dipoles), checked three ways. Nothing is integrated and no sound changed;
 the finding is that a shared pressure output needs the engine to have
 several outputs. See [RADIATION.md](RADIATION.md).
 
+Phase 3D.4 (experimental, awaiting review): the engine given read-only
+observation points (taps), the 16-point bar radiator run in the AudioWorklet
+on them, and one builder example heard through it: the hybrid with a
+listener a metre away. Every earlier instrument plays the samples it played
+on the previous engine. See [RADIATOR.md](RADIATOR.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

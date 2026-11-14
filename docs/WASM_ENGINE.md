@@ -489,3 +489,7 @@ A reasonable first step for Phase 3B would be a builder limited to modal
 parts joined by springs and struck by pulses or a small number of mallets,
 with a rebuild on each structural change, leaving the approved instruments
 on Faust as they are.
+
+## 13. Observation taps (Phase 3D.4)
+
+The engine can now report the velocity of up to 32 ports for every sample of a block, besides its one mixed output: `addTap(r, port)` and `tapPointer()`. Taps are read-only, cost nothing when there are none, and leave the first output bit for bit as it was. Memory layout, cost and verification: section 1 of [RADIATOR.md](RADIATOR.md).

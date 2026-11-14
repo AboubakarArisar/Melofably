@@ -423,3 +423,7 @@ The builder can also hold one experimental instrument that is not made of bars: 
 
 A string may also share a canvas with one metal bar and one mallet, tied to the bar by a spring. It is the only combination of a string and bars that is allowed. See [HYBRID.md](HYBRID.md).
 
+
+## 13. A listener for the hybrid (Phase 3D.4)
+
+One new component, "Listener in the air", allowed only beside a string tied to a metal bar. With it, what is heard is the sound pressure the bar radiates a metre away, in pascals, instead of the bar's velocity; without it, everything is as before. One new example uses it; the earlier examples are unchanged. See section 4 of [RADIATOR.md](RADIATOR.md).

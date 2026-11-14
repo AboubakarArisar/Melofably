@@ -1,8 +1,9 @@
 // EXPERIMENTAL (Phase 3A.1). Development-only test page for the WebAssembly
 // physics engine in a real AudioWorklet. Plain DOM; not part of the application.
 import { createInstrumentNode } from '../../audio/worklet/instruments.ts'
-import { EXAMPLES, STRING_EXAMPLES } from '../../builder/examples.ts'
-import { barModes, instrumentCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
+import { EXAMPLES, RADIATION_EXAMPLES, STRING_EXAMPLES } from '../../builder/examples.ts'
+import { setConnection } from '../../builder/graph.ts'
+import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FULL_SCALE, translate } from '../../builder/translate.ts'
 import { radiationWeights } from '../radiation/barRadiation.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
@@ -748,6 +749,83 @@ async function radiationBench() {
   return { userAgent: navigator.userAgent, results }
 }
 
+// ---- The 16-point radiator in a real AudioWorklet (Phase 3D.4) -------------------------------------
+
+/** The builder's radiated example, played once and rendered offline here: numbers analysis/render-radiator.ts also computes in Node. */
+async function integratedRadiated() {
+  const graph = RADIATION_EXAMPLES[0].make()
+  const translation = translate(graph, 48000)
+  if (!translation.ok) throw new Error('the radiated example does not translate')
+  const ctx = new OfflineAudioContext(1, Math.round(2.2 * 48000), 48000)
+  const physics = await createPhysicsNode(ctx, [...translation.built.calls, ...instrumentCalls(graph, translation.built)])
+  physics.node.connect(ctx.destination)
+  const data = (await ctx.startRendering()).getChannelData(0)
+  let [peak, sum] = [0, 0]
+  for (const v of data) {
+    peak = Math.max(peak, Math.abs(v))
+    sum += v * v
+  }
+  return { example: RADIATION_EXAMPLES[0].id, fullScalePa: LISTENER_FULL_SCALE, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
+}
+
+/**
+ * The string tied to a metal bar, live, as the approved hybrid (velocity output) and with the listener
+ * (16 taps and the radiator), each played two ways for `seconds`: plucked and struck in turn ten times
+ * a second; and the same while the joint's stiffness and damping are changed twenty times a second.
+ * Reports the time spent in process(), the longest single block, blocks of 2 ms or more (a block lasts
+ * 2.67 ms at 48 kHz), blocks made against blocks due, the output device's dropouts, faults and memory.
+ */
+async function radiatorBench(seconds = 10) {
+  await stop()
+  const results: Record<string, unknown> = {}
+  for (const [name, make] of [['approved hybrid, velocity output', STRING_EXAMPLES[1].make], ['hybrid with listener, 16-point radiator', RADIATION_EXAMPLES[0].make]] as const) {
+    for (const editing of [false, true]) {
+      const ctx = new AudioContext({ latencyHint: 'interactive' })
+      const graph = setConnection(make(), make().connections.find((c) => c.type !== 'strike')!.id, { type: 'springDamper', damping: 1 })
+      const joint = graph.connections.find((c) => c.type !== 'strike')!
+      const translation = translate(graph, ctx.sampleRate)
+      if (!translation.ok) throw new Error('the example does not translate')
+      const play = instrumentCalls(graph, translation.built)
+      const physics = await createPhysicsNode(ctx, translation.built.calls, { measure: true })
+      physics.node.connect(new GainNode(ctx, { gain: 0.2 })).connect(ctx.destination)
+      await ctx.resume()
+      await sleep(1000)
+      const stats = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+      const [r0, c0, u0, t0] = [await physics.report(), ctx.currentTime, stats?.underrunEvents ?? 0, performance.now()]
+      let [edits, previous] = [0, graph]
+      for (let i = 0; performance.now() - t0 < seconds * 1000; i++) {
+        if (i % 2 === 0) physics.send([play[(i / 2) % 2]])
+        if (editing) {
+          const next = setConnection(graph, joint.id, { stiffness: i % 2 ? 1e6 : 3e5, damping: i % 4 < 2 ? 1 : 20 })
+          physics.send(liveCalls(previous, next, translation.built))
+          previous = next
+          edits++
+        }
+        await sleep(50)
+      }
+      const r1 = await physics.report()
+      const blocks = r1.blocks - r0.blocks
+      results[`${name}; ${editing ? 'plucked and struck while the joint is edited' : 'plucked and struck'}`] = {
+        engineCpuPercentOfOneCore: Number(((100 * (r1.busyMs - r0.busyMs)) / ((blocks * 128 * 1000) / ctx.sampleRate)).toFixed(2)),
+        longestBlockMs: r1.worstBlockMs,
+        blocksOf2msOrMore: r1.slowBlocks - r0.slowBlocks,
+        blocksProcessed: blocks,
+        blocksExpected: Math.round(((ctx.currentTime - c0) * ctx.sampleRate) / 128),
+        deviceDropouts: stats ? stats.underrunEvents - u0 : 'not reported',
+        nonFiniteSamples: r1.faults,
+        worstSolverIterations: r1.worstIterations,
+        engineMemoryBytes: r1.memoryBytes,
+        jointEdits: edits,
+        sampleRate: ctx.sampleRate,
+      }
+      physics.dispose()
+      await ctx.close()
+      el.results.textContent = `radiator benchmark... ${Object.keys(results).length} of 4 done`
+    }
+  }
+  return { userAgent: navigator.userAgent, hidden: document.hidden, results }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -778,4 +856,4 @@ applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, integratedRadiated, radiatorBench, livePeak, counts } })

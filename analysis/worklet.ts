@@ -42,9 +42,9 @@ export interface Worklet {
 }
 
 /** A processor running the system that `calls` builds. */
-export async function createWorklet(calls: Call[]): Promise<Worklet> {
+export async function createWorklet(calls: Call[], bytes: BufferSource = engineBytes): Promise<Worklet> {
   const Class = await processorClass()
-  const processor = new Class({ processorOptions: { bytes: engineBytes, calls, measure: false } })
+  const processor = new Class({ processorOptions: { bytes, calls, measure: false } })
   const failure = processor.posted.find((message) => 'error' in message)
   if (failure) throw new Error(String(failure.error))
   const block = new Float32Array(128)

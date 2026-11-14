@@ -8,7 +8,8 @@ import { STRING_PLUCK } from '../experimental/string/instrument.ts'
 import { bridgeSpring, buildPlayableStringBody, describeBody, fingerDamping, modesOfString, pluckCall, pullCalls, pullForce, radiation, releaseCalls, retriggerCalls, STRING_DENSITY, stringPitch, touchCall, type StringBody } from '../experimental/string/stringBody.ts'
 import { BAR_STRIKE, buildStringBar, jointSpring } from '../experimental/string/stringBar.ts'
 import { RAMP, type Call } from '../experimental/wasm/engine.ts'
-import { CAPACITY, isBody, isExciter, isResonator, isString, TYPES, validateGraph, type Component, type Graph, type Issue } from './graph.ts'
+import { pointAt, RADIATOR_POINTS, radiatorCalls, type Listener } from '../experimental/radiation/barRadiation.ts'
+import { CAPACITY, isBody, isExciter, isListener, isResonator, isString, TYPES, validateGraph, type Component, type Graph, type Issue } from './graph.ts'
 
 /** Port numbers of a bar in the engine. */
 export const STRIKE_PORT = 0
@@ -25,6 +26,13 @@ export const OUTPUT_GAIN = 0.25
  * this many pascals, so that the loudest pluck allowed (about 1 Pa) is not cut off. 2 Pa is 97 dB SPL.
  */
 export const PRESSURE_FULL_SCALE = 2
+/**
+ * Phase 3D.4. Where the experimental listener is, and the pascals its audio node carries at its
+ * ceiling: a struck bar is far louder at a metre than a plucked string on a box (a pascal or more),
+ * so the ceiling is higher. 16 Pa is 115 dB SPL. Neither is a property the user can change yet.
+ */
+export const LISTENER: Listener = { distance: 1, angle: 45 }
+export const LISTENER_FULL_SCALE = 16
 /** Modes above this fraction of the sample rate are left out, as in the approved instruments. */
 const HIGHEST_MODE = 0.45
 /** Impulse strike: the push's impulse is this many newton-seconds at velocity 1. */
@@ -88,8 +96,10 @@ export interface Built {
   }
   /** Engine port at which each bar is struck and heard, where it is not STRIKE_PORT (a bar a string is tied to). */
   strikePorts?: Record<string, number>
-  /** What the output is: the bars' velocities (m/s) or, for a string on a body, sound pressure (Pa). */
+  /** What the output is: the bars' velocities (m/s) or, for a string on a body or a bar with a listener, sound pressure (Pa). */
   output: 'velocity' | 'pressure'
+  /** The experimental listener (Phase 3D.4), when the graph has one: its identifier and the bar it hears. */
+  listener?: { id: string; barId: string }
 }
 
 export type Translation = { ok: true; built: Built } | { ok: false; issues: Issue[] }
@@ -216,13 +226,17 @@ function translateStringBar(graph: Graph, sampleRate: number): Translation {
   const link = graph.connections.find((c) => c.from === string.id && c.to === bar.id)
   const mallet = graph.components.find((c) => c.type === 'mallet')
   const struck = mallet && graph.connections.some((c) => c.type === 'strike' && c.from === mallet.id && c.to === bar.id)
+  // Phase 3D.4: with a listener the bar is given 16 more ports, the points along it that the radiator
+  // hears. Nothing is attached to them. Without one, the calls are exactly those of Phase 3D.2.
+  const listener = graph.components.find(isListener)
+  const heardAt = listener ? Array.from({ length: RADIATOR_POINTS }, (_, j) => pointAt(j)) : []
   const system = buildStringBar(
     {
       tension: string.params.tension,
       length: string.params.length,
       pluckAt: string.params.pluckPosition,
       // The builder's bars carry their ports as [strike, connection]; the string model wants the joint first.
-      bar: modes.map((mode) => ({ ...mode, shape: [mode.shape[CONNECTION_PORT], mode.shape[STRIKE_PORT]] })),
+      bar: modes.map((mode, n) => ({ ...mode, shape: [mode.shape[CONNECTION_PORT], mode.shape[STRIKE_PORT], ...heardAt.map((xi) => barModeShape(n, xi))] })),
       joint: link ? jointOf(link) : null,
       mallet: mallet && struck ? { mass: mallet.params.mass, stiffness: malletStiffness(mallet.params.hardness) } : undefined,
       outputGain: OUTPUT_GAIN,
@@ -230,6 +244,14 @@ function translateStringBar(graph: Graph, sampleRate: number): Translation {
     sampleRate,
   )
   built.calls = system.calls
+  if (listener) {
+    // The engine's own output (the bar's velocity) is still made, unchanged; the processor puts the
+    // pressure in its place at the audio node.
+    const geometry = { length: bar.params.length, width: bar.params.width / 1000, thickness: bar.params.thickness / 1000 }
+    built.calls = [...system.calls, ...radiatorCalls(geometry, LISTENER, system.bar, 2, sampleRate, LISTENER_FULL_SCALE)]
+    built.output = 'pressure'
+    built.listener = { id: listener.id, barId: bar.id }
+  }
   built.bars[bar.id] = system.bar
   built.strikePorts = { [bar.id]: BAR_STRIKE }
   built.stringBody = { stringId: string.id, bodyId: bar.id, on: 'bar', string: system.string, pluckPort: system.pluckPort, bridge: system.joint, joined: !!link, modes: system.modes.string, finger: system.finger }
@@ -251,7 +273,7 @@ export function structureKey(graph: Graph): string {
   const attached = new Set(graph.connections.filter((c) => c.type === 'strike').map((c) => c.from))
   const fixed = (c: Component) => TYPES[c.type].params.filter((p) => !p.live).map((p) => c.params[p.key])
   return JSON.stringify([
-    graph.components.filter((c) => isResonator(c) || isString(c) || isBody(c) || attached.has(c.id)).map((c) => [c.id, c.type, c.material, ...fixed(c)]),
+    graph.components.filter((c) => isResonator(c) || isString(c) || isBody(c) || isListener(c) || attached.has(c.id)).map((c) => [c.id, c.type, c.material, ...fixed(c)]),
     graph.connections.map((c) => [c.id, c.type, c.from, c.to]),
   ])
 }

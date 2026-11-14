@@ -2,7 +2,7 @@
 // assembles on the canvas. Pure data and pure functions; no audio, no DOM.
 // How it becomes sound: translate.ts. Design: docs/BUILDER.md.
 
-export type ComponentType = 'mallet' | 'impulse' | 'metalBar' | 'woodBar' | 'steelString' | 'dampedBox'
+export type ComponentType = 'mallet' | 'impulse' | 'metalBar' | 'woodBar' | 'steelString' | 'dampedBox' | 'listener'
 /** 'strike' joins an exciter to the bar it hits; 'bridge' stands a string on a body; the others join two bars. */
 export type ConnectionType = 'strike' | 'spring' | 'damper' | 'springDamper' | 'bridge'
 
@@ -64,7 +64,7 @@ export interface Material {
 interface TypeSpec {
   label: string
   /** 'resonator' is a bar. 'string' and 'body' are the experimental string instrument of Phase 3C.3. */
-  kind: 'exciter' | 'resonator' | 'string' | 'body'
+  kind: 'exciter' | 'resonator' | 'string' | 'body' | 'listener'
   description: string
   params: ParamSpec[]
   materials?: Record<string, Material>
@@ -146,6 +146,13 @@ export const TYPES: Record<ComponentType, TypeSpec> = {
     description: 'Experimental. A spruce soundboard on a closed box of air with a screened hole: the body validated in Phase 3C.2.3. Its size, bridge position and hole are fixed in this version.',
     params: [],
   },
+  // Phase 3D.4. Its presence changes what is heard, and nothing about what vibrates.
+  listener: {
+    label: 'Listener in the air',
+    kind: 'listener',
+    description: 'Experimental. A point in still, open air one metre from the middle of the metal bar, 45 degrees off the line straight out from its face. With it, what is heard is the sound pressure the bar radiates there, not the bar\'s own velocity. Its place is fixed in this version.',
+    params: [],
+  },
 }
 
 export const CONNECTION_LABELS: Record<ConnectionType, string> = {
@@ -172,6 +179,9 @@ export const isResonator = (c: Component) => TYPES[c.type].kind === 'resonator'
 export const isExciter = (c: Component) => TYPES[c.type].kind === 'exciter'
 export const isString = (c: Component) => TYPES[c.type].kind === 'string'
 export const isBody = (c: Component) => TYPES[c.type].kind === 'body'
+export const isListener = (c: Component) => TYPES[c.type].kind === 'listener'
+/** The one instrument a listener can hear in this version (Phase 3D.4): a string and a metal bar. */
+const LISTENER_NEEDS = 'A listener hears a metal bar that a string is tied to, and nothing else, in this version. Load "A string tied to a metal bar" first.'
 /** Part of the experimental string instrument, which cannot yet share a canvas with bars. */
 const isStringPart = (c: Component) => isString(c) || isBody(c)
 /** Solver connections a builder connection takes: a spring and damper are solved as two. */
@@ -199,6 +209,7 @@ function incompatible(a: Component | undefined, b: Component | undefined): strin
   if (!a || !b) return 'One end of the connection does not exist.'
   if (a.id === b.id) return 'A component cannot be connected to itself.'
   if (isExciter(a) && isExciter(b)) return 'Two exciters cannot be connected: attach each one to a bar.'
+  if (isListener(a) || isListener(b)) return 'A listener is not connected to anything: the sound reaches it through the air.'
   if (isStringPart(a) || isStringPart(b)) {
     if ((isString(a) && isBody(b)) || (isBody(a) && isString(b))) return null
     if (isStringAndMetalBar(a, b)) return null
@@ -241,8 +252,12 @@ export function cannotConnect(graph: Graph, aId: string, bId: string): string | 
  */
 export function cannotAdd(graph: Graph, type: ComponentType): string | null {
   const part = (t: ComponentType) => TYPES[t].kind === 'string' || TYPES[t].kind === 'body'
-  const others = graph.components.filter((c) => !part(c.type)).map((c) => c.type)
+  const others = graph.components.filter((c) => !part(c.type) && !isListener(c)).map((c) => c.type)
   const [hasString, hasBody] = [graph.components.some(isString), graph.components.some(isBody)]
+  if (type === 'listener') {
+    if (graph.components.some(isListener)) return 'This version supports one listener in an instrument.'
+    return hasString && others.includes('metalBar') ? null : LISTENER_NEEDS
+  }
   if (part(type)) {
     if (graph.components.some((c) => c.type === type)) return `This version supports one ${TYPES[type].label.toLowerCase()} in an instrument.`
     if (type === 'dampedBox' && others.length) return 'A string and its body cannot share an instrument with bars yet. Clear the canvas first, or load the string example.'
@@ -276,7 +291,10 @@ export function validateGraph(graph: Graph): Issue[] {
   const parts = graph.components.filter((c) => TYPES[c.type] && isStringPart(c))
   if (parts.filter(isString).length > 1) issues.push({ message: 'This version supports one string in an instrument.' })
   if (parts.filter(isBody).length > 1) issues.push({ message: 'This version supports one body in an instrument.' })
-  const beside = graph.components.filter((c) => TYPES[c.type] && !isStringPart(c)).map((c) => c.type)
+  const beside = graph.components.filter((c) => TYPES[c.type] && !isStringPart(c) && !isListener(c)).map((c) => c.type)
+  const listeners = graph.components.filter((c) => TYPES[c.type] && isListener(c))
+  if (listeners.length > 1) issues.push({ message: 'This version supports one listener in an instrument.' })
+  if (listeners.length && !(parts.some(isString) && beside.includes('metalBar'))) issues.push({ id: listeners[0].id, message: LISTENER_NEEDS })
   if (parts.some(isBody) && beside.length) issues.push({ message: 'A string and its body cannot share an instrument with bars, mallets or impulse strikes yet.' })
   else if (parts.length && !besideAString(beside)) issues.push({ message: 'A string can share an instrument with one metal bar and one mallet, and nothing else, in this version.' })
   const strikers = new Set<string>()

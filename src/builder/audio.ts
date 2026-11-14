@@ -5,13 +5,16 @@
 import type { Call } from '../experimental/wasm/engine.ts'
 import { createPhysicsNode, type EngineReport, type PhysicsNode } from '../experimental/wasm/host.ts'
 import type { Backend, Voice } from './session.ts'
-import { OUTPUT_GAIN, PRESSURE_FULL_SCALE } from './translate.ts'
+import { OUTPUT_GAIN } from './translate.ts'
 
 /**
  * Gain after the engine at full volume. For bars it undoes the engine's headroom. For a string
  * instrument the node carries pascals / PRESSURE_FULL_SCALE and a plucked string a metre away is
  * quiet (about 0.1 Pa): this brings an ordinary pluck to a comfortable level at mid volume. It is
- * a listening level only; the physics, the meter and the renders are in pascals.
+ * a listening level only; the physics, the meter and the renders are in pascals. The experimental
+ * listener (Phase 3D.4) uses the same gain on a node that carries pascals / LISTENER_FULL_SCALE:
+ * half of full scale per pascal, which puts a struck bar (about a pascal) where it can be heard
+ * without the limiter. Its plucks are then quiet, as the model says they are; nothing is evened out.
  */
 const MAKE_UP = { velocity: 1 / OUTPUT_GAIN, pressure: 8 }
 
@@ -47,6 +50,8 @@ export class BrowserBackend implements Backend {
   private volume = 0.5
   /** What the running system's output is; set when a system is built. */
   private output: 'velocity' | 'pressure' = 'velocity'
+  /** Pascals at the node's ceiling, when the output is pressure. */
+  private fullScale = 0
   /** Nodes and contexts made and released, to show that nothing is duplicated or left behind. */
   readonly counts = { nodesCreated: 0, nodesDisposed: 0, contextsCreated: 0, contextsClosed: 0 }
 
@@ -98,8 +103,11 @@ export class BrowserBackend implements Backend {
       this.pending = null
       if (this.physics !== physics || !pending) return // stopped meanwhile
       physics.send([...pending.calls, ...pending.after])
-      // A system that asks the processor for radiated pressure is a string instrument.
-      this.output = pending.calls.some((call) => call[0] === 'radiate') ? 'pressure' : 'velocity'
+      // A system that asks the processor for radiated pressure says how many pascals the node's ceiling is.
+      const radiate = pending.calls.find((call) => call[0] === 'radiate')
+      const radiator = pending.calls.find((call) => call[0] === 'radiator')
+      this.output = radiate || radiator ? 'pressure' : 'velocity'
+      this.fullScale = radiator ? radiator[1] : radiate ? radiate[5] : 0
       gain.gain.setTargetAtTime(this.volume * MAKE_UP[this.output], ctx.currentTime, FADE)
     }, 6 * FADE * 1000)
   }
@@ -133,7 +141,7 @@ export class BrowserBackend implements Backend {
     return {
       state: ctx.state,
       sampleRate: ctx.sampleRate,
-      peak: this.output === 'pressure' ? peak * PRESSURE_FULL_SCALE : peak / OUTPUT_GAIN,
+      peak: this.output === 'pressure' ? peak * this.fullScale : peak / OUTPUT_GAIN,
       unit: this.output === 'pressure' ? 'Pa' : 'm/s',
       peakOfFullScale: peak,
       overloaded: peak >= 0.999,

@@ -13,6 +13,9 @@ const MAX_SHAPE: i32 = 32768 // sum over resonators of ports x modes
 const MAX_CONN: i32 = 32
 const MAX_PULSES: i32 = 32
 const MAX_BLOCK: i32 = 4096
+// Phase 3D.4: observation taps (see addTap).
+const MAX_TAPS: i32 = 32
+const TAP_BLOCK: i32 = 128
 
 const SPRING: i32 = 0
 const CONTACT: i32 = 1
@@ -100,6 +103,14 @@ const pAmp = new StaticArray<f64>(MAX_PULSES)
 
 const out = new StaticArray<f32>(MAX_BLOCK)
 
+// Observation taps (Phase 3D.4). Each is one port of one resonator, read and never written.
+let T: i32 = 0 // taps in use
+const tShape = new StaticArray<i32>(MAX_TAPS) // first shape entry of the tap's port
+const tStart = new StaticArray<i32>(MAX_TAPS) // first mode of its resonator
+const tCount = new StaticArray<i32>(MAX_TAPS) // modes of its resonator
+// Velocity of tap t at sample i of the block just processed, m/s: taps[t * TAP_BLOCK + i].
+const taps = new StaticArray<f64>(MAX_TAPS * TAP_BLOCK)
+
 // ---- Building ---------------------------------------------------------------
 
 export function reset(sampleRate: f64, prewarpMode: i32): void {
@@ -115,6 +126,7 @@ export function reset(sampleRate: f64, prewarpMode: i32): void {
   worst = 0
   faultCount = 0
   livePulses = 0
+  T = 0
   for (let i = 0; i < MAX_PULSES; i++) unchecked((pLength[i] = 0))
 }
 
@@ -607,6 +619,15 @@ export function process(count: i32): void {
       mix = 0
     }
     unchecked((out[i] = <f32>mix))
+    // Taps: read after the step is finished and the output written. Nothing above depends on them.
+    if (T > 0 && i < TAP_BLOCK) {
+      for (let t = 0; t < T; t++) {
+        const s = unchecked(tShape[t])
+        let sum: f64 = 0
+        for (let n = 0, N = unchecked(tCount[t]), first = unchecked(tStart[t]); n < N; n++) sum += unchecked(shape[s + n] * vMid[first + n])
+        unchecked((taps[t * TAP_BLOCK + i] = sum))
+      }
+    }
   }
   // Numbers too small to matter become exactly zero, so a long decay never
   // reaches the subnormal range, where arithmetic is many times slower.
@@ -636,6 +657,29 @@ export function silence(): void {
 
 export function outputPointer(): usize {
   return changetype<usize>(out)
+}
+
+/**
+ * Phase 3D.4. An observation tap: the mid-step velocity (m/s) of one port of
+ * one resonator, the quantity velocity() returns, kept for every sample of a
+ * block. Returns the tap's index, or -1 if all 32 are in use. A tap is read
+ * only: it applies no force, takes no energy and is not part of the output
+ * (addOutput); the solver does not know it exists. process() writes tap t at
+ * sample i to the 64-bit buffer at tapPointer(), entry t * 128 + i, for the
+ * first 128 samples of each call: ask for at most 128 at a time when taps
+ * are in use. reset() removes all taps.
+ */
+export function addTap(r: i32, port: i32): i32 {
+  if (T >= MAX_TAPS) return -1
+  const t = T++
+  unchecked((tShape[t] = rShape[r] + port * rCount[r]))
+  unchecked((tStart[t] = rStart[r]))
+  unchecked((tCount[t] = rCount[r]))
+  return t
+}
+
+export function tapPointer(): usize {
+  return changetype<usize>(taps)
 }
 
 // ---- Playing ----------------------------------------------------------------

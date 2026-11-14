@@ -25,6 +25,7 @@
 // w_c = 2 w c / (A + A_added), and are joined by a first-order rolloff of
 // the dipole's rise.
 import { barModeShape } from '../../audio/engine/physics.ts'
+import type { Call } from '../wasm/engine.ts'
 
 /** Density of air, kg/m^3, and the speed of sound in it, m/s, at about 20 degrees C. */
 export const AIR_DENSITY = 1.2
@@ -102,6 +103,50 @@ export function modeTransfer(g: BarGeometry, listener: Listener, shape: (xi: num
 
 /** The shape of free-free bending mode n (0-based), as every bar here has it. */
 export const freeBarShape = (n: number) => (xi: number) => barModeShape(n, xi)
+
+/** Points along the bar the real-time radiator listens to (Phase 3D.4): the number validated in Phase 3D.3. */
+export const RADIATOR_POINTS = 16
+/** Where point j of `points` is, as a fraction of the bar's length: the middle of the piece it stands for. */
+export const pointAt = (j: number, points = RADIATOR_POINTS) => (j + 0.5) / points
+
+/**
+ * Phase 3D.4. The numbers the AudioWorklet processor's 'radiator' needs
+ * (processor.js), for a bar whose points' velocities are engine taps
+ * `firstTap`, `firstTap + 1`, ...: the same model as pieceTransfer(), with
+ * each point standing for length / points of the bar. Returned as the
+ * arguments of the call: fullScale (Pa at the audio node's ceiling), the
+ * crossover lowpass (bilinear, b0 and a1), then per point its tap, far-field
+ * gain (Pa per m/s^2 above the crossover's rise), near-field gain (Pa per
+ * m/s^2) and how late it is heard, in samples. Every point is heard
+ * length / c seconds late (radiatorDelay), so that points nearer the
+ * listener than the bar's middle can be heard first.
+ */
+export function radiatorArguments(g: BarGeometry, listener: Listener, firstTap: number, sampleRate: number, fullScale: number, points = RADIATOR_POINTS): number[] {
+  const angle = (listener.angle * Math.PI) / 180
+  const wc = 2 * Math.PI * crossover(g)
+  const t = Math.tan(wc / (2 * sampleRate))
+  const args = [fullScale, t / (1 + t), (t - 1) / (1 + t)]
+  for (let j = 0; j < points; j++) {
+    const [along, out] = [listener.distance * Math.sin(angle) - (pointAt(j, points) - 0.5) * g.length, listener.distance * Math.cos(angle)]
+    const R = Math.hypot(along, out)
+    const strength = (AIR_DENSITY * dipoleArea(g) * (out / R) * (g.length / points)) / (4 * Math.PI)
+    args.push(firstTap + j, (strength * wc) / (SOUND_SPEED * R), strength / (R * R), (radiatorDelay(g) + (R - listener.distance) / SOUND_SPEED) * sampleRate)
+  }
+  return args
+}
+/**
+ * Engine and processor calls that turn a built system's output into the
+ * pressure radiated by one bar: a tap on each of the bar's ports `firstPort`,
+ * `firstPort + 1`, ... (which must hold the modes' shapes at pointAt(j)), and
+ * the 'radiator' that listens to them. To be added after the system's own
+ * calls. The taps are the first the system has.
+ */
+export function radiatorCalls(g: BarGeometry, listener: Listener, resonator: number, firstPort: number, sampleRate: number, fullScale: number, points = RADIATOR_POINTS): Call[] {
+  const taps = Array.from({ length: points }, (_, j): Call => ['addTap', resonator, firstPort + j])
+  return [...taps, ['radiator', ...radiatorArguments(g, listener, 0, sampleRate, fullScale, points)]]
+}
+/** Seconds by which the radiator's whole output is late. */
+export const radiatorDelay = (g: BarGeometry) => g.length / SOUND_SPEED
 
 /**
  * One number per mode, for an engine that has one output: the size of the

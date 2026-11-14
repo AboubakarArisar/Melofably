@@ -35,6 +35,7 @@ Documentation:
 - [The string-and-body instrument in the builder: architecture, controls, playing it, verification, how to try it](docs/STRING_INSTRUMENT.md)
 - [A string tied to a metal bar: the first hybrid of the two kinds of resonator](docs/HYBRID.md)
 - [Radiation: how each instrument makes its output, a pressure model for bars, and what a shared output needs](docs/RADIATION.md)
+- [Several engine outputs and the experimental bar radiator: taps, the 16-point radiator in the AudioWorklet, and the hybrid heard as sound pressure](docs/RADIATOR.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -97,6 +98,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:string-playing` | Render the playing behaviours of the string instrument (retrigger, additive, damping, mute, pull and release, a short performance) into `renders/string-playing/` |
 | `npm run render:string-bar` | Render the hybrid (a string tied to a metal bar): listening files, coupling measurements and timing, into `renders/string-bar/` |
 | `npm run render:radiation` | Render the bar-radiation prototype's comparisons (velocity today against modelled pressure) and its cost, into `renders/radiation/` |
+| `npm run render:radiator` | Render the approved outputs against the real-time 16-point radiator (metal bar, wooden bar, hybrid), with its comparison to the reference and its cost, into `renders/radiator/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

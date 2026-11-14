@@ -67,7 +67,21 @@ function stringOnBar(): Graph {
   return connect(struck, string.id, bar.id).graph
 }
 
+/**
+ * Phase 3D.4: the same hybrid, part for part, with a listener in the air: what is heard is the sound
+ * pressure the bar radiates a metre away, by the 16-point model of docs/RADIATION.md. The string, the
+ * bar, the joint and the mallet are those of stringOnBar() and move exactly as they do there.
+ */
+function stringOnBarHeard(): Graph {
+  return place(stringOnBar(), 'listener', 160, 420).graph
+}
+
 export const STRING_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
   { id: 'string', label: 'A string on a damped box body', make: stringOnBox },
   { id: 'string-bar', label: 'A string tied to a metal bar', make: stringOnBar },
+]
+
+/** Phase 3D.4. Kept apart again: the two lists above are what earlier phases approved and check. */
+export const RADIATION_EXAMPLES: { id: string; label: string; make: () => Graph }[] = [
+  { id: 'string-bar-pressure', label: 'A string tied to a metal bar, heard as sound pressure at 1 m', make: stringOnBarHeard },
 ]

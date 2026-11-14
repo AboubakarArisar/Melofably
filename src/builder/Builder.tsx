@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { BrowserBackend, type Meter } from './audio.ts'
 import { Canvas, type Selection } from './Canvas.tsx'
-import { EXAMPLES, STRING_EXAMPLES } from './examples.ts'
+import { EXAMPLES, RADIATION_EXAMPLES, STRING_EXAMPLES } from './examples.ts'
 import {
   addComponent,
   cannotAdd,
@@ -153,6 +153,7 @@ export default function Builder() {
   const strike = (id: string) => {
     const item = graph.components.find((c) => c.id === id)
     if (!item) return
+    if (TYPES[item.type].kind === 'listener') return play()
     const bar = TYPES[item.type].kind !== 'exciter'
     const played = bar ? session.strikeBar(id) : session.strikeExciter(id)
     // Plucking shows on the string, whether the string or its body was asked.
@@ -265,7 +266,7 @@ export default function Builder() {
           <label htmlFor="example" className="sr-only">
             Load an example
           </label>
-          <select id="example" value="" onChange={(e) => e.target.value && load([...EXAMPLES, ...STRING_EXAMPLES].find((x) => x.id === e.target.value)!.make())} className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm">
+          <select id="example" value="" onChange={(e) => e.target.value && load([...EXAMPLES, ...STRING_EXAMPLES, ...RADIATION_EXAMPLES].find((x) => x.id === e.target.value)!.make())} className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm">
             <option value="">Load an example…</option>
             {EXAMPLES.map((x) => (
               <option key={x.id} value={x.id}>
@@ -274,6 +275,13 @@ export default function Builder() {
             ))}
             <optgroup label="Experimental: string and body">
               {STRING_EXAMPLES.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Experimental: radiated sound">
+              {RADIATION_EXAMPLES.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.label}
                 </option>
@@ -326,7 +334,7 @@ export default function Builder() {
           Volume
           <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-28 accent-sky-400" />
         </label>
-        <div className="flex items-center gap-2 text-sm text-neutral-300" title={pressure ? 'Sound pressure a metre in front of the body, before the volume control' : 'How fast the bars are moving where they are struck'}>
+        <div className="flex items-center gap-2 text-sm text-neutral-300" title={pressure ? 'Sound pressure a metre away, before the volume control' : 'How fast the bars are moving where they are struck'}>
           Level
           <div className="h-2 w-32 overflow-hidden rounded bg-neutral-800" role="meter" aria-label="Output level" aria-valuemin={0} aria-valuemax={1} aria-valuenow={Number(load01.toFixed(2))}>
             <div className={`h-full ${meter?.overloaded ? 'bg-red-400' : meter && meter.limiting > 0.5 ? 'bg-amber-300' : 'bg-emerald-400'}`} style={{ width: `${100 * load01}%` }} />
@@ -350,6 +358,7 @@ export default function Builder() {
               ['Things that strike', ['exciter']],
               ['Things that ring', ['resonator']],
               ['String instrument (experimental)', ['string', 'body']],
+              ['Listening (experimental)', ['listener']],
             ] as const
           ).map(([title, kinds]) => (
             <div key={title} className="mb-3">
