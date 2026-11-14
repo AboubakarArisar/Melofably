@@ -7,6 +7,8 @@ import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FUL
 import { radiationWeights } from '../radiation/barRadiation.ts'
 import { CANDIDATES, design } from '../radiation/hybridCandidates.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
+import { buildStringBarBody, PROTOTYPE, TUNED, type StringBarBody } from '../string/stringBarBody.ts'
+import { buildPlayableStringBody, pluckCall, radiation } from '../string/stringBody.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
 import { unbaffledCorner } from '../string/soundboardRefined.ts'
@@ -834,6 +836,83 @@ async function radiatorBench(seconds = 10, candidates: boolean | 'examples' = fa
   return { userAgent: navigator.userAgent, hidden: document.hidden, results }
 }
 
+// ---- Three coupled parts in a real AudioWorklet (Phase 3D.6) -----------------------------------------
+
+const threeBodyCalls = (s: StringBarBody, sampleRate: number) => {
+  const built = buildStringBarBody(s, sampleRate)
+  const r = radiation(sampleRate)
+  return { built, calls: [...built.calls, ['radiate', r.perSample, r.b0, r.b1, r.a1, 16]] as Call[], play: [pluckCall(built, 2), ['launch', built.mallet!, 1.5]] as Call[] }
+}
+
+/** The tuned three-part prototype, plucked and struck at once, rendered offline here: numbers analysis/render-three-body.ts also computes in Node. */
+async function integratedThreeBody() {
+  const { calls, play } = threeBodyCalls(TUNED, 48000)
+  const ctx = new OfflineAudioContext(1, Math.round(2.2 * 48000), 48000)
+  const physics = await createPhysicsNode(ctx, [...calls, ...play])
+  physics.node.connect(ctx.destination)
+  const data = (await ctx.startRendering()).getChannelData(0)
+  let [peak, sum] = [0, 0]
+  for (const v of data) {
+    peak = Math.max(peak, Math.abs(v))
+    sum += v * v
+  }
+  return { fullScalePa: 16, peak, sumOfSquares: sum, samples: [100, 1000, 10000, 50000, 100000].map((n) => data[n]) }
+}
+
+/**
+ * The approved string on its box and the three-part prototype (as first built, and tuned), live for
+ * `seconds` each: plucked and struck in turn about ten times a second; the tuned one again while the
+ * bar's pads are made stiffer and softer, and more and less damped, about 17 times a second.
+ */
+async function threeBodyBench(seconds = 20) {
+  await stop()
+  const results: Record<string, unknown> = {}
+  for (const name of ['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'three parts, tuned, plucked and struck', 'three parts, tuned, plucked and struck while the pads are edited'] as const) {
+    const ctx = new AudioContext({ latencyHint: 'interactive' })
+    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : TUNED, ctx.sampleRate)
+    const box = buildPlayableStringBody({ tension: 73.5, length: 0.65, pluckAt: 0.8, joined: true }, ctx.sampleRate)
+    const approved = /approved/.test(name)
+    const calls = approved ? ([...box.calls, three.calls.at(-1)!] as Call[]) : three.calls
+    const play = approved ? [pluckCall(box, 2)] : three.play
+    const physics = await createPhysicsNode(ctx, calls, { measure: true })
+    physics.node.connect(new GainNode(ctx, { gain: 0.1 })).connect(ctx.destination)
+    await ctx.resume()
+    await sleep(1000)
+    const stats = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+    const [r0, c0, u0, t0] = [await physics.report(), ctx.currentTime, stats?.underrunEvents ?? 0, performance.now()]
+    let edits = 0
+    for (let i = 0; performance.now() - t0 < seconds * 1000; i++) {
+      if (i % 2 === 0) physics.send([play[(i / 2) % play.length]])
+      if (/edited/.test(name)) {
+        const [a, b] = three.built.supports!
+        const [stiffness, damping] = [i % 2 ? 1e6 : 3e5, i % 4 < 2 ? 5 : 30]
+        physics.send([['setStiffness', a, stiffness, RAMP, 480], ['setStiffness', b, stiffness, RAMP, 480], ['setDamping', a, damping], ['setDamping', b, damping]])
+        edits++
+      }
+      await sleep(50)
+    }
+    const r1 = await physics.report()
+    const blocks = r1.blocks - r0.blocks
+    results[name] = {
+      engineCpuPercentOfOneCore: Number(((100 * (r1.busyMs - r0.busyMs)) / ((blocks * 128 * 1000) / ctx.sampleRate)).toFixed(2)),
+      longestBlockMs: r1.worstBlockMs,
+      blocksOf2msOrMore: r1.slowBlocks - r0.slowBlocks,
+      blocksProcessed: blocks,
+      blocksExpected: Math.round(((ctx.currentTime - c0) * ctx.sampleRate) / 128),
+      deviceDropouts: stats ? stats.underrunEvents - u0 : 'not reported',
+      nonFiniteSamples: r1.faults,
+      worstSolverIterations: r1.worstIterations,
+      engineMemoryBytes: r1.memoryBytes,
+      padEdits: edits,
+      sampleRate: ctx.sampleRate,
+    }
+    physics.dispose()
+    await ctx.close()
+    el.results.textContent = `three-part benchmark... ${Object.keys(results).length} of 4 done`
+  }
+  return { userAgent: navigator.userAgent, hidden: document.hidden, results }
+}
+
 // ---- Wiring ---------------------------------------------------------------------------
 
 const busy = async (button: HTMLButtonElement, work: () => Promise<unknown>) => {
@@ -864,4 +943,4 @@ applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, integratedRadiated, radiatorBench, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, integratedRadiated, radiatorBench, integratedThreeBody, threeBodyBench, livePeak, counts } })

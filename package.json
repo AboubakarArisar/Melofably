@@ -32,6 +32,7 @@
     "render:radiator": "node analysis/render-radiator.ts",
     "render:hybrid-study": "node analysis/render-hybrid-study.ts",
     "render:tuned-example": "node analysis/render-tuned-example.ts",
+    "render:three-body": "node analysis/render-three-body.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

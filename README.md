@@ -37,6 +37,7 @@ Documentation:
 - [Radiation: how each instrument makes its output, a pressure model for bars, and what a shared output needs](docs/RADIATION.md)
 - [Several engine outputs and the experimental bar radiator: taps, the 16-point radiator in the AudioWorklet, and the hybrid heard as sound pressure](docs/RADIATOR.md)
 - [Why the radiated hybrid's pluck is quiet, and two physically tuned candidates](docs/HYBRID_PLAYABILITY.md)
+- [Three coupled parts: a string and a metal bar on one soundboard (feasibility prototype)](docs/THREE_BODY.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -102,6 +103,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:radiator` | Render the approved outputs against the real-time 16-point radiator (metal bar, wooden bar, hybrid), with its comparison to the reference and its cost, into `renders/radiator/` |
 | `npm run render:hybrid-study` | Measure the hybrid from pluck or stroke to the listener, sweep its physical properties, and render level-matched and common-gain listening files of the candidates, into `renders/hybrid-study/` |
 | `npm run render:tuned-example` | Render the tuned radiated example against the original radiated example (one comparison file at a common gain, and level-matched files), into `renders/tuned-example/` |
+| `npm run render:three-body` | Measure and render the three-part feasibility prototype (string, metal bar and damped body as one system): energy transfer, pitch, exploration, cost and listening files, into `renders/three-body/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

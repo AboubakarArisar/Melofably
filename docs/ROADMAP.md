@@ -145,6 +145,13 @@ the builder as a second radiated example, exactly as validated; nothing else
 changed. Its sound has not had listening approval. See section 12 of
 [HYBRID_PLAYABILITY.md](HYBRID_PLAYABILITY.md).
 
+Phase 3D.6 (feasibility, awaiting review): a string and a small metal bar
+both standing on the damped enclosed body, as one coupled system, isolated
+from the builder. It is physically coherent, the string keeps its pitch and
+its fundamental, and a well-mounted bar rings through the board; the two
+exchange little energy and a stroke is far louder than a pluck. See
+[THREE_BODY.md](THREE_BODY.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.
