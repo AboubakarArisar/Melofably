@@ -6,6 +6,7 @@
 import { malletStiffness } from '../src/builder/translate.ts'
 import { buildPlayableStringBody, pluckCall, radiation, stringPitch, touchCall } from '../src/experimental/string/stringBody.ts'
 import { barOnBoardModes } from '../src/experimental/string/stringBarBody.ts'
+import { BAR_STRING } from '../src/experimental/string/stringBarBody.ts'
 import { BAR_STRIKE, BAR_SUPPORT_A, BAR_SUPPORT_B, BOARD_BRIDGE, BOARD_RADIATION, BOARD_SUPPORT_A, BOARD_SUPPORT_B, buildStringBarBody, PROTOTYPE, SMALL_BAR, TUNED, type BarOnBoard, type StringBarBody } from '../src/experimental/string/stringBarBody.ts'
 import type { Call } from '../src/experimental/wasm/engine.ts'
 import { SR } from './lib.ts'
@@ -95,7 +96,7 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
   // One extra read-only port per bar mode (its modal velocity), after the bar's own four.
   const count = built.modes.bar
   const probed = withPorts(o.lossless ? lossless(built.calls) : built.calls, built.bar, Array.from({ length: count }, (_, p) => Array.from({ length: count }, (_, n) => (n === p ? 1 : 0))))
-  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], ['addTap', built.board, BOARD_BRIDGE], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B], ...Array.from({ length: count }, (_, n): Call => ['addTap', built.bar, probed.first + n]), ...(built.padLumps ?? []).map((lump): Call => ['addTap', lump, 0])]
+  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], built.tie === undefined ? ['addTap', built.board, BOARD_BRIDGE] : ['addTap', built.bar, BAR_STRING], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B], ...Array.from({ length: count }, (_, n): Call => ['addTap', built.bar, probed.first + n]), ...(built.padLumps ?? []).map((lump): Call => ['addTap', lump, 0])]
   const worklet = await createWorklet([...probed.calls, ...watch, ['radiate', r.perSample, r.b0, r.b1, r.a1, FULL_SCALE]])
   const engine = worklet.engine
   const taps = new Float64Array(engine.memory.buffer, engine.tapPointer(), 32 * 128)
@@ -127,7 +128,8 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     out.boardVelocity[i] = taps[2 * 128]
     out.dissipated += engine.dissipated()
     // A spring pulls its first side with -F and its second with +F. The bridge is string-to-board; the supports are bar-to-board.
-    const across = engine.connectionForce(built.bridge) * taps[3 * 128]
+    // The string's joint lands on the board, or (Phase 3D.9) on the bar: `bridgeWork` is its work on whichever it is.
+    const across = engine.connectionForce(built.tie ?? built.bridge) * taps[3 * 128]
     bridge += across / SR
     if (across > 0) out.toBoard += across / SR
     else out.fromBoard -= across / SR

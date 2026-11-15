@@ -35,6 +35,7 @@
     "render:three-body": "node analysis/render-three-body.ts",
     "render:three-body-mounting": "node analysis/render-three-body-mounting.ts",
     "render:three-body-pads": "node analysis/render-three-body-pads.ts",
+    "render:three-body-architecture": "node analysis/render-three-body-architecture.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

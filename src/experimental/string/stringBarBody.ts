@@ -37,7 +37,7 @@ import type { Mode } from '../physics/resonator.ts'
 import type { Call } from '../wasm/engine.ts'
 import { airCavity } from './airCavity.ts'
 import { buildInstrument, STRING_END, STRING_PLUCK } from './instrument.ts'
-import { DEFAULT_LOSS } from './modalString.ts'
+import { bridgeStiffness, DEFAULT_LOSS, residualCompliance, stringModes } from './modalString.ts'
 import { plateModes } from './soundboard.ts'
 import { BODY, BRIDGE_STIFFNESS, STRING_MODES, stringOf, type Playing } from './stringBody.ts'
 
@@ -71,6 +71,8 @@ export const BAR_SUPPORT_B = 1
 export const BAR_STRIKE = 2
 /** A point for reading or for an optional direct tie to the string: the bar's end. */
 export const BAR_END = 3
+/** Phase 3D.9: where the string is tied, when the bar is the string's bridge (StringBarBody.stringOnBar). */
+export const BAR_STRING = 4
 /** The bar's first two modes are its rigid-body modes; its bending modes follow. */
 export const RIGID_MODES = 2
 
@@ -80,9 +82,10 @@ export const RIGID_MODES = 2
  * the decay of its metal bars. Each mode's mass is the bar's mass (shapes of
  * unit mean square). Bending modes above 0.45 of the sample rate are left out.
  */
-export function barOnBoardModes(b: BarOnBoard, sampleRate: number): Mode[] {
+export function barOnBoardModes(b: BarOnBoard, sampleRate: number, extra: number[] = []): Mode[] {
   const mass = barMass(b)
-  const at = [b.supports[0], b.supports[1], b.strikeAt, 0]
+  // Any further points (fractions of the bar's length) become further ports, after the bar's own four.
+  const at = [b.supports[0], b.supports[1], b.strikeAt, 0, ...extra]
   const rigid: Mode[] = [
     { frequency: 0, t60: Infinity, mass, shape: at.map(() => 1) },
     { frequency: 0, t60: Infinity, mass, shape: at.map((xi) => Math.sqrt(3) * (2 * xi - 1)) },
@@ -143,12 +146,26 @@ export interface StringBarBody {
   stringOn: boolean
   /** Where the bridge stands on the board (fractions of its length and width). Absent: where the approved body has it. */
   bridgeAt?: [number, number]
+  /**
+   * Phase 3D.9, "the bar is the string's bridge". The string's end does not stand on the board at all:
+   * it is tied to the bar, `at` this fraction of the bar's length, by a spring (N/m; the bridge's
+   * stiffness, with the same allowance for the string's missing modes) and a damper (N s/m). The bar
+   * stands on the board on its two pads as before, so everything the string gives the board goes
+   * through the bar. Absent: the string stands on the board by its own bridge, as in every earlier phase.
+   */
+  stringOnBar?: { at: number; stiffness: number; damping: number }
   bar: BarOnBoard
   /**
    * Where the bar lies on the board: its middle, as fractions of the board's
    * length and width. It lies along the board's length.
    */
   barAt: [number, number]
+  /**
+   * Phase 3D.9. Where on the board each of the bar's two pads stands (fractions of the board's length and
+   * width), when the bar does not lie along the board's length about `barAt`. The two points must be as
+   * far apart as the pads are on the bar. Absent: as `barAt` says.
+   */
+  padsAt?: [[number, number], [number, number]]
   /** Each of the bar's two supports: a spring (N/m) and a damper (N s/m). null: the bar does not stand on the board. */
   mount: Mount | null
   /** Optional: a spring and damper straight from the string's end to the bar's end. Absent: none. */
@@ -158,7 +175,14 @@ export interface StringBarBody {
 }
 
 /** Where on the board the bar's two supports stand, as fractions of the board's length and width. */
-export function supportPoints(s: Pick<StringBarBody, 'bar' | 'barAt'>): [[number, number], [number, number]] {
+export function supportPoints(s: Pick<StringBarBody, 'bar' | 'barAt' | 'padsAt'>): [[number, number], [number, number]] {
+  if (s.padsAt) {
+    const [[ax, ay], [bx, by]] = s.padsAt
+    const apart = Math.hypot((bx - ax) * BODY.plate.length, (by - ay) * BODY.plate.width)
+    const onBar = Math.abs(s.bar.supports[1] - s.bar.supports[0]) * s.bar.length
+    if (Math.abs(apart - onBar) > 0.002) throw new Error(`the pads stand ${apart.toFixed(4)} m apart on the board but ${onBar.toFixed(4)} m apart on the bar`)
+    return s.padsAt
+  }
   const along = (xi: number) => s.barAt[0] + ((xi - 0.5) * s.bar.length) / BODY.plate.length
   return [[along(s.bar.supports[0]), s.barAt[1]], [along(s.bar.supports[1]), s.barAt[1]]]
 }
@@ -184,6 +208,8 @@ export interface BuiltStringBarBody extends Playing {
   padPaths?: [[spring: number, damper: number], [spring: number, damper: number]]
   mallet?: number
   direct?: number
+  /** Phase 3D.9: the connection that ties the string's end to the bar, when the bar is its bridge. */
+  tie?: number
   modes: { string: number; board: number; bar: number }
 }
 
@@ -204,7 +230,7 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
       stringModes: STRING_MODES,
       pluckAt: s.pluckAt,
       body: plateModes(BODY.plate, [s.bridgeAt ?? BODY.bridgeAt, ...points], sampleRate, BODY.limit),
-      bridge: { stiffness: s.stringOn ? BRIDGE_STIFFNESS : 0 },
+      bridge: { stiffness: s.stringOn && !s.stringOnBar ? BRIDGE_STIFFNESS : 0 },
       output: { port: BOARD_RADIATION, gain: 1 },
       air: { stiffness: air.stiffness, damping: air.damping, resistance: air.resistance, plug: air.plug },
     },
@@ -219,9 +245,9 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
   const finger = connections++
   calls.push(['addSpring', string, STRING_PLUCK, built.ground, 0, 0, 0, 0, 0])
   // The bar.
-  const modes = barOnBoardModes(s.bar, sampleRate)
+  const modes = barOnBoardModes(s.bar, sampleRate, s.stringOnBar ? [s.stringOnBar.at] : [])
   const bar = resonators++
-  calls.push(['addResonator', 4, modes.length])
+  calls.push(['addResonator', modes[0].shape.length, modes.length])
   modes.forEach((mode, n) => {
     mode.shape.forEach((value, port) => calls.push(['setShape', bar, port, n, value]))
     calls.push(['setMode', bar, n, mode.frequency, mode.t60, mode.mass])
@@ -246,6 +272,13 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
     padLumps = [a[0], b[0]]
     padPaths = [a[1], b[1]]
   }
+  let tie: number | undefined
+  if (s.stringOnBar && s.stringOn) {
+    // The joint a bridge makes, with the compliance of the string's missing modes in series, landing on the bar.
+    const kept = stringModes(stringOf(s), [1, s.pluckAt, 0.3], sampleRate, DEFAULT_LOSS, STRING_MODES)
+    tie = connections++
+    calls.push(['addSpring', string, STRING_END, bar, BAR_STRING, bridgeStiffness(s.stringOnBar.stiffness, residualCompliance(stringOf(s), kept, sampleRate)), s.stringOnBar.damping, 0, 0])
+  }
   let direct: number | undefined
   if (s.direct) {
     direct = connections++
@@ -261,7 +294,7 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
   }
   calls.push(['build'])
   // The plug of air is the resonator buildInstrument adds after the board; the ground follows it.
-  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, padLumps, padPaths, mallet, direct, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
+  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, padLumps, padPaths, mallet, direct, tie, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
 }
 
 // ---- The two configurations of the feasibility study (docs/THREE_BODY.md) -----------------------------------
@@ -332,3 +365,30 @@ export const VISCO_MOUNT: StringBarBody = { ...SOFT_MOUNT, bar: { ...SOFT_MOUNT.
  * and nearly its loss there (3.4 N s/m: loss factor 0.064). The same bar.
  */
 export const MEDIUM_MOUNT: StringBarBody = { ...VISCO_MOUNT, mount: { stiffness: 2.2e5, damping: 3.4 } }
+
+// ---- Phase 3D.9: other ways of putting the three together (docs/THREE_BODY_ARCHITECTURE.md) ---------------------
+
+/** Where the bar's pads stand when its first pad is on the approved bridge point and it lies along the board's length. */
+const alongTheBridgeLine = (bar: BarOnBoard): [[number, number], [number, number]] => [
+  [BODY.bridgeAt[0], BODY.bridgeAt[1]],
+  [BODY.bridgeAt[0] + (Math.abs(bar.supports[1] - bar.supports[0]) * bar.length) / BODY.plate.length, BODY.bridgeAt[1]],
+]
+
+/**
+ * Architecture A, "shared bridge point". The string stands on the board by
+ * its approved bridge, as always. The bar (the soft mount's bar, on the
+ * stiff pads of Phase 3D.6) lies along the nodal line the bridge stands on,
+ * with its first pad on the very point where the bridge stands: string and
+ * bar push the same point of the board.
+ */
+export const SHARED_POINT: StringBarBody = { ...VISCO_MOUNT, mount: { stiffness: 1e6, damping: 5 }, padsAt: alongTheBridgeLine(VISCO_MOUNT.bar) }
+
+/**
+ * Architecture B, "the bar is the string's bridge". The same bar in the same
+ * place on the same pads, but the string does not stand on the board: its
+ * end is tied to the bar, a fifth of the way along it, just beside the pad
+ * that stands where the bridge stood (the pad is at 0.215). The string
+ * pushes the bar; the bar pushes the board. The tie is the bridge's own
+ * spring (1e6 N/m).
+ */
+export const BAR_BRIDGE: StringBarBody = { ...SHARED_POINT, stringOnBar: { at: 0.2, stiffness: 1e6, damping: 0 } }

@@ -417,3 +417,7 @@ Reference WAV hashes are unchanged.
 ## 11. What followed (Phase 3D.8)
 
 Recommendation 4 above was carried out: a pad with a relaxing path (a standard linear solid) was built and validated in the prototype. It moves the trade between knock and note by one to three decibels and costs a third more to compute, so the plain pad is kept. See [THREE_BODY_PADS.md](THREE_BODY_PADS.md).
+
+## 12. A correction (Phase 3D.9)
+
+Section 2 above reports that 98.7 % of a pluck is "lost in the string itself". That number is everything that did not pass through the bridge, as a share of the most the instrument held, and the label was wrong. Phase 3D.9 accounted for it fully: 47.8 % of that peak is taken back by the plucking force as it relaxes, and 50.9 % is lost in the string. The measurements and the conclusion (under 2 % of a pluck ever enters the board) are unchanged. See [THREE_BODY_ARCHITECTURE.md](THREE_BODY_ARCHITECTURE.md), which also describes an arrangement in which the string does reach the bar.

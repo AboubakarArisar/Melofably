@@ -7,7 +7,7 @@ import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FUL
 import { radiationWeights } from '../radiation/barRadiation.ts'
 import { CANDIDATES, design } from '../radiation/hybridCandidates.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
-import { buildStringBarBody, PROTOTYPE, SOFT_MOUNT, SOFT_MOUNT_BRIDGE, TUNED, VISCO_MOUNT, type StringBarBody } from '../string/stringBarBody.ts'
+import { BAR_BRIDGE, buildStringBarBody, PROTOTYPE, SHARED_POINT, SOFT_MOUNT, SOFT_MOUNT_BRIDGE, TUNED, VISCO_MOUNT, type StringBarBody } from '../string/stringBarBody.ts'
 import { buildPlayableStringBody, pluckCall, radiation } from '../string/stringBody.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -889,18 +889,21 @@ async function deviceBaseline(seconds = 10) {
   return { hidden: document.hidden, results }
 }
 
-async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' = false) {
+async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' | 'architecture' = false) {
   await stop()
   const results: Record<string, unknown> = {}
   // Phase 3D.8: with 'pads', the three mounts side by side (stiff, soft, viscoelastic).
-  const names = candidates === 'pads'
+  // Phase 3D.9: with 'architecture', the tuned prototype beside the shared bridge point and the bar as the string's bridge.
+  const names = candidates === 'architecture'
+    ? (['approved string on its box, plucked', 'tuned prototype (stiff pads), plucked and struck', 'architecture A (shared bridge point), plucked and struck', 'architecture B (bar as bridge), plucked and struck', 'architecture B (bar as bridge), plucked and struck while the pads are edited'] as const)
+    : candidates === 'pads'
     ? (['approved string on its box, plucked', 'tuned prototype (stiff pads), plucked and struck', 'candidate A (soft mount), plucked and struck', 'viscoelastic pads, plucked and struck', 'viscoelastic pads, plucked and struck while the pads are edited'] as const)
     : candidates
     ? (['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'candidate A (soft mount), plucked and struck', 'candidate B (soft mount, bridge moved), plucked and struck', 'candidate A, plucked and struck while the pads are edited'] as const)
     : (['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'three parts, tuned, plucked and struck', 'three parts, tuned, plucked and struck while the pads are edited'] as const)
   for (const name of names) {
     const ctx = new AudioContext({ latencyHint: 'interactive' })
-    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : /candidate A/.test(name) ? SOFT_MOUNT : /candidate B/.test(name) ? SOFT_MOUNT_BRIDGE : /viscoelastic/.test(name) ? VISCO_MOUNT : TUNED, ctx.sampleRate)
+    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : /candidate A/.test(name) ? SOFT_MOUNT : /candidate B/.test(name) ? SOFT_MOUNT_BRIDGE : /viscoelastic/.test(name) ? VISCO_MOUNT : /architecture A/.test(name) ? SHARED_POINT : /architecture B/.test(name) ? BAR_BRIDGE : TUNED, ctx.sampleRate)
     const box = buildPlayableStringBody({ tension: 73.5, length: 0.65, pluckAt: 0.8, joined: true }, ctx.sampleRate)
     const approved = /approved/.test(name)
     const calls = approved ? ([...box.calls, three.calls.at(-1)!] as Call[]) : three.calls
@@ -916,7 +919,7 @@ async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' = false
       if (i % 2 === 0) physics.send([play[(i / 2) % play.length]])
       if (/edited/.test(name)) {
         const [a, b] = three.built.supports!
-        const [stiffness, damping] = candidates ? [i % 2 ? 1e5 : 3e4, i % 4 < 2 ? 1 : 5] : [i % 2 ? 1e6 : 3e5, i % 4 < 2 ? 5 : 30]
+        const [stiffness, damping] = candidates && candidates !== 'architecture' ? [i % 2 ? 1e5 : 3e4, i % 4 < 2 ? 1 : 5] : [i % 2 ? 1e6 : 3e5, i % 4 < 2 ? 5 : 30]
         physics.send([['setStiffness', a, stiffness, RAMP, 480], ['setStiffness', b, stiffness, RAMP, 480], ['setDamping', a, damping], ['setDamping', b, damping]])
         edits++
       }

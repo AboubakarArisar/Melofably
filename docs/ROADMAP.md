@@ -167,6 +167,14 @@ not worth adopting. The useful middle between the earlier mounts comes from
 the pad's stiffness, which a plain pad gives too. See
 [THREE_BODY_PADS.md](THREE_BODY_PADS.md).
 
+Phase 3D.9 (feasibility, awaiting review): another arrangement of the same
+three parts. With the string tied to the bar and the bar standing on the
+board where the bridge stood, the bar's bending takes about twenty times
+more of a pluck and the string thirteen times more of a stroke, the string
+keeps its pitch and fundamental, and the bar's note is heard in every
+pluck's attack. Still isolated; not heard. See
+[THREE_BODY_ARCHITECTURE.md](THREE_BODY_ARCHITECTURE.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.
