@@ -42,6 +42,7 @@ Documentation:
 - [Three coupled parts: a more realistic pad under the bar, and what it is worth](docs/THREE_BODY_PADS.md)
 - [Three coupled parts: another way to put them together (the bar as the string's bridge)](docs/THREE_BODY_ARCHITECTURE.md)
 - [The bar-as-bridge instrument: its voices and how it answers to playing](docs/BAR_BRIDGE_CHARACTER.md)
+- [A finger on the bar: damping and two playing gestures](docs/BAR_DAMPING.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -112,6 +113,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:three-body-pads` | Compare the bar's mounts (stiff, soft, viscoelastic, and a plain pad of the same stiffness): energy budget, knock against note, playability, cost, and listening files with a manifest, into `renders/three-body-pads/` |
 | `npm run render:three-body-architecture` | Screen and compare other arrangements of string, bar and body (shared bridge point; the bar as the string's bridge): energy budgets, sound, robustness, playing, cost, and listening files with a manifest, into `renders/three-body-architecture/` |
 | `npm run render:bar-bridge` | The bar-as-bridge instrument in other voices: bar tuned to other harmonics, tie position, striker mass and speed, playing, cost, and listening files with a manifest, into `renders/bar-bridge/` |
+| `npm run render:bar-damping` | A finger on the bar of the bar-as-bridge instrument: contact models, landing and leaving, where it is laid, the two ties, playing with both gestures, block-by-block cost, and listening files with a manifest, into `renders/bar-damping/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

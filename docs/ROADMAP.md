@@ -185,6 +185,15 @@ more than a knock. Where the string is plucked decides whether the bar is
 heard. Still isolated; not heard. See
 [BAR_BRIDGE_CHARACTER.md](BAR_BRIDGE_CHARACTER.md).
 
+Phase 3D.11 (research, awaiting review): a finger on the bar. A spring and
+a damper from one point of the bar to a still hand stop the bar's note in
+tens of milliseconds, passively, with no click and every joule accounted
+for. Bar damping and string muting are separate gestures: a finger on the
+bar leaves the string's energy unchanged, a finger on the string leaves
+the bar ringing. Never used, the finger changes no sample of the 3D.10
+reference. Still isolated; not heard; real-time safety in the browser
+still not demonstrated. See [BAR_DAMPING.md](BAR_DAMPING.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

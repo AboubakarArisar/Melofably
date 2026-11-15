@@ -37,6 +37,7 @@
     "render:three-body-pads": "node analysis/render-three-body-pads.ts",
     "render:three-body-architecture": "node analysis/render-three-body-architecture.ts",
     "render:bar-bridge": "node analysis/render-bar-bridge.ts",
+    "render:bar-damping": "node analysis/render-bar-damping.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

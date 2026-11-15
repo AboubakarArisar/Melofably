@@ -172,6 +172,12 @@ export interface StringBarBody {
   direct?: { stiffness: number; damping: number }
   /** A mallet for the bar: mass (kg) and Hertz contact stiffness (N/m^1.5). */
   mallet?: { mass: number; stiffness: number }
+  /**
+   * Phase 3D.11. A place on the bar (a fraction of its length) where a finger can be laid: a spring and a
+   * damper from that point to something that does not move (the hand), both of no strength until asked
+   * for (barTouchCalls). Absent: the instrument is built exactly as before.
+   */
+  touchBar?: { at: number }
 }
 
 /** Where on the board the bar's two supports stand, as fractions of the board's length and width. */
@@ -210,6 +216,11 @@ export interface BuiltStringBarBody extends Playing {
   direct?: number
   /** Phase 3D.9: the connection that ties the string's end to the bar, when the bar is its bridge. */
   tie?: number
+  /** Phase 3D.11: the finger on the bar (an engine connection) and the bar's port it rests on, when there is a place for one. */
+  barFinger?: number
+  barTouchPort?: number
+  /** The engine resonator that does not move: what a finger rests against. */
+  ground: number
   modes: { string: number; board: number; bar: number }
 }
 
@@ -245,7 +256,8 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
   const finger = connections++
   calls.push(['addSpring', string, STRING_PLUCK, built.ground, 0, 0, 0, 0, 0])
   // The bar.
-  const modes = barOnBoardModes(s.bar, sampleRate, s.stringOnBar ? [s.stringOnBar.at] : [])
+  const extra = [...(s.stringOnBar ? [s.stringOnBar.at] : []), ...(s.touchBar ? [s.touchBar.at] : [])]
+  const modes = barOnBoardModes(s.bar, sampleRate, extra)
   const bar = resonators++
   calls.push(['addResonator', modes[0].shape.length, modes.length])
   modes.forEach((mode, n) => {
@@ -292,9 +304,17 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
     calls.push(['addContact', malletHead, 0, bar, BAR_STRIKE, s.mallet.stiffness, 1.5, -1])
     mallet = connections++
   }
+  let barFinger: number | undefined
+  let barTouchPort: number | undefined
+  if (s.touchBar) {
+    // After everything else, so that no earlier connection changes its place.
+    barTouchPort = 4 + extra.length - 1
+    barFinger = connections++
+    calls.push(['addSpring', bar, barTouchPort, built.ground, 0, 0, 0, 0, 0])
+  }
   calls.push(['build'])
   // The plug of air is the resonator buildInstrument adds after the board; the ground follows it.
-  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, padLumps, padPaths, mallet, direct, tie, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
+  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, padLumps, padPaths, mallet, direct, tie, barFinger, barTouchPort, ground: built.ground, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
 }
 
 // ---- The two configurations of the feasibility study (docs/THREE_BODY.md) -----------------------------------
@@ -421,3 +441,49 @@ export const BAR_BRIDGE_FIRMER_TIE: StringBarBody = barBridgeWith({}, 0.18)
 /** A light striker for this instrument: 5 g, the standard hardness. And three ways of using it, m/s. */
 export const LIGHT_STRIKER = { mass: 0.005, stiffness: 1e8 }
 export const STROKES = { gentle: 0.5, medium: 1, strong: 2 }
+
+// ---- Phase 3D.11: a finger on the bar (docs/BAR_DAMPING.md) -----------------------------------------------------
+
+/**
+ * A fingertip or the edge of a hand pressed on the bar, as the bar feels
+ * it: a spring (N/m) and a damper (N s/m) side by side between that point
+ * of the bar and the hand, which is taken not to move. Pressing harder
+ * flattens more flesh against the metal, so both grow together. The values
+ * are of the order published for fingertip pulp under light to firm
+ * pressure; they are estimates, not measurements of anyone's hand.
+ */
+export interface BarTouch {
+  stiffness: number
+  damping: number
+}
+export const BAR_TOUCH: Record<'light' | 'medium' | 'firm' | 'palm', BarTouch> = {
+  light: { stiffness: 500, damping: 2 },
+  medium: { stiffness: 2000, damping: 6 },
+  firm: { stiffness: 8000, damping: 20 },
+  palm: { stiffness: 2e4, damping: 60 },
+}
+/** How long flesh takes to settle on the metal and to leave it, s. */
+export const BAR_TOUCH_TIME = { arrive: 0.004, leave: 0.008 }
+
+/**
+ * The finger comes to rest on the bar and stays. It lands where the bar is
+ * at that instant ('attach': its spring starts unstretched, so landing
+ * gives the bar nothing), then its spring stiffens along a ramp inside the
+ * engine (which counts any energy that changes hands: `injected`) while its
+ * damper is brought up by the processor's 'touch'. `landing: false` changes
+ * the pressure of a finger that is already there.
+ */
+export function barTouchCalls(built: Pick<BuiltStringBarBody, 'barFinger'>, touch: BarTouch, sampleRate: number, arrive = BAR_TOUCH_TIME.arrive, landing = true): Call[] {
+  if (built.barFinger === undefined) throw new Error('this instrument has no place for a finger on its bar')
+  const k = built.barFinger
+  return [...(landing ? ([['attach', k]] as Call[]) : []), ['setStiffness', k, touch.stiffness, 1, Math.max(1, Math.round(arrive * sampleRate))], ['touch', k, touch.damping, arrive, -1, 0]]
+}
+
+/** The finger leaves the bar: spring and damper go to nothing together. */
+export function barReleaseCalls(built: Pick<BuiltStringBarBody, 'barFinger'>, sampleRate: number, leave = BAR_TOUCH_TIME.leave): Call[] {
+  if (built.barFinger === undefined) throw new Error('this instrument has no place for a finger on its bar')
+  return [['setStiffness', built.barFinger, 0, 1, Math.max(1, Math.round(leave * sampleRate))], ['touch', built.barFinger, 0, leave, 0, 0]]
+}
+
+/** Architecture B with a place for a finger on its bar: BAR_BRIDGE (or another tie), the light striker, and where it is touched. */
+export const dampable = (touchAt = 0.5, tieAt = BAR_BRIDGE.stringOnBar!.at): StringBarBody => ({ ...barBridgeWith({}, tieAt), mallet: LIGHT_STRIKER, touchBar: { at: touchAt } })
