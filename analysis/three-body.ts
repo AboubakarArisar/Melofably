@@ -4,7 +4,7 @@
 // and analysis/render-three-body.ts. Everything runs through the browser's
 // own AudioWorklet processor file (analysis/worklet.ts).
 import { malletStiffness } from '../src/builder/translate.ts'
-import { buildPlayableStringBody, pluckCall, radiation, stringPitch, touchCall } from '../src/experimental/string/stringBody.ts'
+import { buildPlayableStringBody, pluckCall, radiation, retriggerCalls, stringPitch, touchCall } from '../src/experimental/string/stringBody.ts'
 import { barOnBoardModes } from '../src/experimental/string/stringBarBody.ts'
 import { BAR_STRING } from '../src/experimental/string/stringBarBody.ts'
 import { BAR_STRIKE, BAR_SUPPORT_A, BAR_SUPPORT_B, BOARD_BRIDGE, BOARD_RADIATION, BOARD_SUPPORT_A, BOARD_SUPPORT_B, buildStringBarBody, PROTOTYPE, SMALL_BAR, TUNED, type BarOnBoard, type StringBarBody } from '../src/experimental/string/stringBarBody.ts'
@@ -82,6 +82,9 @@ export interface Run {
   padStoredPeak: number
   /** Energy the bar's own material took, J: each mode's damping times its velocity squared, over the run. */
   barLoss: number
+  /** Phase 3D.10. For a stroke: how long the mallet and the bar were pressed together, s (all touches added), and the largest force between them, N. */
+  contactSeconds: number
+  contactForcePeak: number
   /** All the energy that ever crossed the bridge from string to board, and back, J. */
   toBoard: number
   fromBoard: number
@@ -113,7 +116,7 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     pressure: new Float32Array(samples), stringVelocity: new Float32Array(samples), barVelocity: new Float32Array(samples), boardVelocity: new Float32Array(samples),
     energy: { string: new Float64Array(blocks), board: new Float64Array(blocks), air: new Float64Array(blocks), bar: new Float64Array(blocks), mallet: new Float64Array(blocks), total: new Float64Array(blocks) },
     peak: { string: 0, board: 0, bar: 0, in: 0 }, malletGave: 0, bridgeWork: new Float64Array(blocks), supportWork: new Float64Array(blocks), toBar: 0, fromBar: 0, dissipated: 0, faults: 0, worstIterations: 0,
-    barModes: Array.from({ length: count }, () => new Float32Array(samples)), padLoss: 0, padPathLoss: 0, padStoredPeak: 0, barLoss: 0, toBoard: 0, fromBoard: 0,
+    barModes: Array.from({ length: count }, () => new Float32Array(samples)), padLoss: 0, padPathLoss: 0, padStoredPeak: 0, barLoss: 0, contactSeconds: 0, contactForcePeak: 0, toBoard: 0, fromBoard: 0,
   }
   const padDamping = o.lossless ? 0 : (s.mount?.damping ?? 0)
   const pathDamping = o.lossless ? 0 : (s.mount?.relaxing?.damping ?? 0)
@@ -137,6 +140,11 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     // A pad's damper takes c x (the speed across it)^2.
     if (built.supports) out.padLoss += (padDamping * ((taps[4 * 128] - taps[6 * 128]) ** 2 + (taps[5 * 128] - taps[7 * 128]) ** 2)) / SR
     for (let n = 0; n < count; n++) out.barLoss += (barDamping[n] * taps[(8 + n) * 128] ** 2) / SR
+    if (built.mallet !== undefined && playing !== 'pluck') {
+      const push = Math.abs(engine.connectionForce(built.mallet))
+      if (push > 0) out.contactSeconds += 1 / SR
+      out.contactForcePeak = Math.max(out.contactForcePeak, push)
+    }
     if (built.padLumps) {
       // The relaxing path's damper sits between the pad's lump and the board.
       const path = (pathDamping * ((taps[(8 + count) * 128] - taps[6 * 128]) ** 2 + (taps[(9 + count) * 128] - taps[7 * 128]) ** 2)) / SR
@@ -272,3 +280,6 @@ export async function perform(s: StringBarBody, events: Event[], seconds: number
   }
   return { pressure, energy, faults: worklet.engine.faults(), worstIterations: worklet.engine.worstIterations(), clipped: peak >= 64, largestStepOverPeak: jump / peak, stringEnergy: worklet.engine.resonatorEnergy(built.string), built }
 }
+
+/** Phase 3D.10. Touch, then pluck: the string's own retrigger (a finger rests on it for 30 ms and plucks as it leaves). */
+export const retriggerAt = (at: number, s: StringBarBody, force = PLUCK): Event => ({ at, calls: (b) => retriggerCalls(b, s, force) })

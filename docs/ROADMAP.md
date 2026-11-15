@@ -175,6 +175,16 @@ keeps its pitch and fundamental, and the bar's note is heard in every
 pluck's attack. Still isolated; not heard. See
 [THREE_BODY_ARCHITECTURE.md](THREE_BODY_ARCHITECTURE.md).
 
+Phase 3D.10 (research, awaiting review): what that instrument can be made
+to do. Of bars tuned to the string's 3rd, 4th, 5th, 6th and 8th harmonics
+only the 6th is clearly effective; the 4th and 8th are kept with caveats,
+and a bar exactly on a harmonic absorbs it. The tie point is a setup
+adjustment over a narrow stable range. A 5 g striker brings a stroke from
+23 dB above a pluck to 15 dB (9 dB when gentle) and makes it the bar's note
+more than a knock. Where the string is plucked decides whether the bar is
+heard. Still isolated; not heard. See
+[BAR_BRIDGE_CHARACTER.md](BAR_BRIDGE_CHARACTER.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

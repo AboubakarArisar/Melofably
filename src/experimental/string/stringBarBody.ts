@@ -369,7 +369,7 @@ export const MEDIUM_MOUNT: StringBarBody = { ...VISCO_MOUNT, mount: { stiffness:
 // ---- Phase 3D.9: other ways of putting the three together (docs/THREE_BODY_ARCHITECTURE.md) ---------------------
 
 /** Where the bar's pads stand when its first pad is on the approved bridge point and it lies along the board's length. */
-const alongTheBridgeLine = (bar: BarOnBoard): [[number, number], [number, number]] => [
+export const alongTheBridgeLine = (bar: BarOnBoard): [[number, number], [number, number]] => [
   [BODY.bridgeAt[0], BODY.bridgeAt[1]],
   [BODY.bridgeAt[0] + (Math.abs(bar.supports[1] - bar.supports[0]) * bar.length) / BODY.plate.length, BODY.bridgeAt[1]],
 ]
@@ -392,3 +392,32 @@ export const SHARED_POINT: StringBarBody = { ...VISCO_MOUNT, mount: { stiffness:
  * spring (1e6 N/m).
  */
 export const BAR_BRIDGE: StringBarBody = { ...SHARED_POINT, stringOnBar: { at: 0.2, stiffness: 1e6, damping: 0 } }
+
+// ---- Phase 3D.10: the bar-as-bridge instrument in other voices (docs/BAR_BRIDGE_CHARACTER.md) ------------------
+
+/** A bar lying along the bridge's nodal line with the string tied to it: BAR_BRIDGE with another bar and another tie. */
+export const barBridgeWith = (bar: Partial<BarOnBoard>, tieAt = BAR_BRIDGE.stringOnBar!.at): StringBarBody => {
+  const whole = { ...BAR_BRIDGE.bar, ...bar }
+  return { ...BAR_BRIDGE, bar: whole, padsAt: alongTheBridgeLine(whole), stringOnBar: { ...BAR_BRIDGE.stringOnBar!, at: tieAt } }
+}
+
+/**
+ * The bar an octave and a fifth lower in the string's harmonics: its note
+ * on the 4th harmonic (440 Hz) instead of the 6th. Longer (0.2437 m) and
+ * narrower (16.4 mm) so that it weighs what the reference bar weighs (54 g).
+ */
+export const BAR_BRIDGE_440: StringBarBody = barBridgeWith({ length: 0.2437, width: 16.4 })
+
+/**
+ * The bar on the string's 8th harmonic (880 Hz): shorter (0.1728 m, which
+ * leaves it 8 cents flat of the harmonic, where it adds to the harmonic
+ * instead of taking from it) and wider (23.2 mm), again 54 g.
+ */
+export const BAR_BRIDGE_880: StringBarBody = barBridgeWith({ length: 0.1728, width: 23.2 })
+
+/** The reference bar with the string tied further from its node (0.18 instead of 0.2): the bar takes more from the string. */
+export const BAR_BRIDGE_FIRMER_TIE: StringBarBody = barBridgeWith({}, 0.18)
+
+/** A light striker for this instrument: 5 g, the standard hardness. And three ways of using it, m/s. */
+export const LIGHT_STRIKER = { mass: 0.005, stiffness: 1e8 }
+export const STROKES = { gentle: 0.5, medium: 1, strong: 2 }

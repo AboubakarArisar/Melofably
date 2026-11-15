@@ -7,7 +7,7 @@ import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FUL
 import { radiationWeights } from '../radiation/barRadiation.ts'
 import { CANDIDATES, design } from '../radiation/hybridCandidates.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
-import { BAR_BRIDGE, buildStringBarBody, PROTOTYPE, SHARED_POINT, SOFT_MOUNT, SOFT_MOUNT_BRIDGE, TUNED, VISCO_MOUNT, type StringBarBody } from '../string/stringBarBody.ts'
+import { BAR_BRIDGE, BAR_BRIDGE_440, BAR_BRIDGE_880, BAR_BRIDGE_FIRMER_TIE, buildStringBarBody, PROTOTYPE, SHARED_POINT, SOFT_MOUNT, SOFT_MOUNT_BRIDGE, TUNED, VISCO_MOUNT, type StringBarBody } from '../string/stringBarBody.ts'
 import { buildPlayableStringBody, pluckCall, radiation } from '../string/stringBody.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -889,12 +889,15 @@ async function deviceBaseline(seconds = 10) {
   return { hidden: document.hidden, results }
 }
 
-async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' | 'architecture' = false) {
+async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' | 'architecture' | 'character' = false) {
   await stop()
   const results: Record<string, unknown> = {}
   // Phase 3D.8: with 'pads', the three mounts side by side (stiff, soft, viscoelastic).
   // Phase 3D.9: with 'architecture', the tuned prototype beside the shared bridge point and the bar as the string's bridge.
-  const names = candidates === 'architecture'
+  // Phase 3D.10: with 'character', architecture B beside the bars on other harmonics and the firmer tie.
+  const names = candidates === 'character'
+    ? (['approved string on its box, plucked', 'architecture B (bar as bridge), plucked and struck', '440 Hz bar, plucked and struck', '880 Hz bar, plucked and struck', 'firmer tie, plucked and struck'] as const)
+    : candidates === 'architecture'
     ? (['approved string on its box, plucked', 'tuned prototype (stiff pads), plucked and struck', 'architecture A (shared bridge point), plucked and struck', 'architecture B (bar as bridge), plucked and struck', 'architecture B (bar as bridge), plucked and struck while the pads are edited'] as const)
     : candidates === 'pads'
     ? (['approved string on its box, plucked', 'tuned prototype (stiff pads), plucked and struck', 'candidate A (soft mount), plucked and struck', 'viscoelastic pads, plucked and struck', 'viscoelastic pads, plucked and struck while the pads are edited'] as const)
@@ -903,7 +906,7 @@ async function threeBodyBench(seconds = 20, candidates: boolean | 'pads' | 'arch
     : (['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'three parts, tuned, plucked and struck', 'three parts, tuned, plucked and struck while the pads are edited'] as const)
   for (const name of names) {
     const ctx = new AudioContext({ latencyHint: 'interactive' })
-    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : /candidate A/.test(name) ? SOFT_MOUNT : /candidate B/.test(name) ? SOFT_MOUNT_BRIDGE : /viscoelastic/.test(name) ? VISCO_MOUNT : /architecture A/.test(name) ? SHARED_POINT : /architecture B/.test(name) ? BAR_BRIDGE : TUNED, ctx.sampleRate)
+    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : /candidate A/.test(name) ? SOFT_MOUNT : /candidate B/.test(name) ? SOFT_MOUNT_BRIDGE : /viscoelastic/.test(name) ? VISCO_MOUNT : /architecture A/.test(name) ? SHARED_POINT : /architecture B/.test(name) ? BAR_BRIDGE : /440 Hz/.test(name) ? BAR_BRIDGE_440 : /880 Hz/.test(name) ? BAR_BRIDGE_880 : /firmer tie/.test(name) ? BAR_BRIDGE_FIRMER_TIE : TUNED, ctx.sampleRate)
     const box = buildPlayableStringBody({ tension: 73.5, length: 0.65, pluckAt: 0.8, joined: true }, ctx.sampleRate)
     const approved = /approved/.test(name)
     const calls = approved ? ([...box.calls, three.calls.at(-1)!] as Call[]) : three.calls

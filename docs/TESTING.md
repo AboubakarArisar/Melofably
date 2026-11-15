@@ -120,3 +120,7 @@ The same configuration. The suite is 379 tests in 25 files. The runs made are re
 ## Phase 3D.9
 
 The same configuration. The suite is 391 tests in 26 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
+
+## Phase 3D.10
+
+The same configuration. The suite is 404 tests in 27 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
