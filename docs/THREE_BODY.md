@@ -344,3 +344,9 @@ for the builder**, and I recommend not integrating it yet.
    component and connection, not a new example of existing ones.
 3. **Repeat the browser benchmark** when the machine's audio output is
    behaving, before any claim about real-time use.
+
+## 12. A correction, and what followed (Phase 3D.7)
+
+Sections 4, 9 and 10 above describe the first prototype's stroke as "the bar bouncing on its pads against the board, not a bar's note". Phase 3D.7 separated the bar's rigid-body motion from each of its bending modes and found that this was wrong in part: at 419 Hz the bar's lowest bending mode itself is moving. Stiff pads a tenth of the way in from its ends turn a free bar into a supported beam, whose fundamental is far lower (419 Hz against 654 Hz). It is a bar's note, but a supported bar's, tied tightly to the board and gone in a third of a second. The measurements in this document stand; only that description changes.
+
+Phase 3D.7 also found that the knock of any stroke is the mallet's push reaching the board (a bar that cannot bend knocks as hard), explained why the string hardly reaches the bar, and compared two mounting candidates. See [THREE_BODY_MOUNTING.md](THREE_BODY_MOUNTING.md).

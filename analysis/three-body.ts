@@ -8,7 +8,28 @@ import { buildPlayableStringBody, pluckCall, radiation, stringPitch } from '../s
 import { BAR_STRIKE, BAR_SUPPORT_A, BAR_SUPPORT_B, BOARD_BRIDGE, BOARD_RADIATION, BOARD_SUPPORT_A, BOARD_SUPPORT_B, buildStringBarBody, PROTOTYPE, SMALL_BAR, TUNED, type BarOnBoard, type StringBarBody } from '../src/experimental/string/stringBarBody.ts'
 import type { Call } from '../src/experimental/wasm/engine.ts'
 import { SR } from './lib.ts'
+import { fft, withPorts } from './radiation.ts'
 import { createWorklet } from './worklet.ts'
+
+/**
+ * Share of a signal's energy within `width` (a ratio, e.g. 1.03) of any of `frequencies`, from `from`
+ * seconds on: how much of a sound is at the bar's notes.
+ */
+export function shareNear(x: ArrayLike<number>, frequencies: number[], width = 1.03, from = 0): number {
+  const start = Math.round(from * SR)
+  const N = 2 ** Math.ceil(Math.log2(x.length - start))
+  const [re, im] = [new Float64Array(N), new Float64Array(N)]
+  for (let i = start; i < x.length; i++) re[i - start] = x[i]
+  fft(re, im)
+  let [near, total] = [0, 0]
+  for (let k = 1; k < N / 2; k++) {
+    const f = (k * SR) / N
+    const e = re[k] * re[k] + im[k] * im[k]
+    total += e
+    if (frequencies.some((c) => f > c / width && f < c * width)) near += e
+  }
+  return near / total
+}
 
 /** Pascals at the audio node's ceiling in this prototype: a struck bar on a board can pass the string instrument's 2 Pa. */
 export const FULL_SCALE = 16
@@ -49,6 +70,13 @@ export interface Run {
   fromBar: number
   /** Energy the engine counted as dissipated, J, over the whole run. */
   dissipated: number
+  /** Phase 3D.7. Velocity of each of the bar's modes, m/s: [up and down, rocking, bending 1, bending 2, ...]. */
+  barModes: Float32Array[]
+  /** Energy the two pads' dampers took, J, over the whole run. */
+  padLoss: number
+  /** All the energy that ever crossed the bridge from string to board, and back, J. */
+  toBoard: number
+  fromBoard: number
   faults: number
   worstIterations: number
 }
@@ -57,8 +85,11 @@ export interface Run {
 export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o: { lossless?: boolean; pluck?: number; stroke?: number } = {}): Promise<Run> {
   const built = buildStringBarBody(s, SR)
   const r = radiation(SR)
-  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], ['addTap', built.board, BOARD_BRIDGE], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B]]
-  const worklet = await createWorklet([...(o.lossless ? lossless(built.calls) : built.calls), ...watch, ['radiate', r.perSample, r.b0, r.b1, r.a1, FULL_SCALE]])
+  // One extra read-only port per bar mode (its modal velocity), after the bar's own four.
+  const count = built.modes.bar
+  const probed = withPorts(o.lossless ? lossless(built.calls) : built.calls, built.bar, Array.from({ length: count }, (_, p) => Array.from({ length: count }, (_, n) => (n === p ? 1 : 0))))
+  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], ['addTap', built.board, BOARD_BRIDGE], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B], ...Array.from({ length: count }, (_, n): Call => ['addTap', built.bar, probed.first + n])]
+  const worklet = await createWorklet([...probed.calls, ...watch, ['radiate', r.perSample, r.b0, r.b1, r.a1, FULL_SCALE]])
   const engine = worklet.engine
   const taps = new Float64Array(engine.memory.buffer, engine.tapPointer(), 32 * 128)
   const play: Call[] = []
@@ -74,7 +105,9 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     pressure: new Float32Array(samples), stringVelocity: new Float32Array(samples), barVelocity: new Float32Array(samples), boardVelocity: new Float32Array(samples),
     energy: { string: new Float64Array(blocks), board: new Float64Array(blocks), air: new Float64Array(blocks), bar: new Float64Array(blocks), mallet: new Float64Array(blocks), total: new Float64Array(blocks) },
     peak: { string: 0, board: 0, bar: 0, in: 0 }, malletGave: 0, bridgeWork: new Float64Array(blocks), supportWork: new Float64Array(blocks), toBar: 0, fromBar: 0, dissipated: 0, faults: 0, worstIterations: 0,
+    barModes: Array.from({ length: count }, () => new Float32Array(samples)), padLoss: 0, toBoard: 0, fromBoard: 0,
   }
+  const padDamping = o.lossless ? 0 : (s.mount?.damping ?? 0)
   let [bridge, support] = [0, 0]
   for (let i = 0; i < samples; i++) {
     out.pressure[i] = worklet.render(1)[0] * FULL_SCALE
@@ -83,7 +116,13 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     out.boardVelocity[i] = taps[2 * 128]
     out.dissipated += engine.dissipated()
     // A spring pulls its first side with -F and its second with +F. The bridge is string-to-board; the supports are bar-to-board.
-    bridge += (engine.connectionForce(built.bridge) * taps[3 * 128]) / SR
+    const across = engine.connectionForce(built.bridge) * taps[3 * 128]
+    bridge += across / SR
+    if (across > 0) out.toBoard += across / SR
+    else out.fromBoard -= across / SR
+    for (let n = 0; n < count; n++) out.barModes[n][i] = taps[(8 + n) * 128]
+    // A pad's damper takes c x (the speed across it)^2.
+    if (built.supports) out.padLoss += (padDamping * ((taps[4 * 128] - taps[6 * 128]) ** 2 + (taps[5 * 128] - taps[7 * 128]) ** 2)) / SR
     if (built.supports) {
       const power = -(engine.connectionForce(built.supports[0]) * taps[4 * 128] + engine.connectionForce(built.supports[1]) * taps[5 * 128])
       support += power / SR
@@ -144,3 +183,31 @@ export async function sound(s: StringBarBody, playing: Playing, seconds = 3, o: 
 
 export const F0 = stringPitch({ tension: BASE.tension, length: BASE.length })
 export const cents = (f: number, reference: number) => 1200 * Math.log2(f / reference)
+
+/** The strongest spectral peaks of `x` between `from` and `to` seconds and between `low` and `high` Hz: [Hz, amplitude]. */
+export function spectralPeaks(x: ArrayLike<number>, from: number, to: number, count = 6, low = 20, high = 20000): [number, number][] {
+  const N = 131072
+  const [re, im] = [new Float64Array(N), new Float64Array(N)]
+  const [a, b] = [Math.round(from * SR), Math.min(x.length, Math.round(to * SR), Math.round(from * SR) + N)]
+  for (let i = a; i < b; i++) re[i - a] = x[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * (i - a)) / (b - a)))
+  fft(re, im)
+  const size = (k: number) => (Math.hypot(re[k], im[k]) * 4) / (b - a)
+  const found: [number, number][] = []
+  for (let k = Math.max(3, Math.round((low * N) / SR)); k < Math.min(N / 2 - 3, (high * N) / SR); k++) if (size(k) > size(k - 1) && size(k) >= size(k + 1) && size(k) > size(k - 3) && size(k) > size(k + 3)) found.push([(k * SR) / N, size(k)])
+  return found.sort((p, q) => q[1] - p[1]).slice(0, count)
+}
+
+/** Seconds from a signal's loudest 10 ms until it is `down` dB below that (null: it never was). */
+export function fallTime(x: ArrayLike<number>, down = 20): number | null {
+  const w = Math.round(0.01 * SR)
+  const env: number[] = []
+  for (let i = 0; i + w <= x.length; i += w) {
+    let s = 0
+    for (let j = 0; j < w; j++) s += x[i + j] * x[i + j]
+    env.push(s / w)
+  }
+  const best = Math.max(...env)
+  const at = env.indexOf(best)
+  for (let i = at; i < env.length; i++) if (env[i] < best * 10 ** (-down / 10)) return ((i - at) * w) / SR
+  return null
+}

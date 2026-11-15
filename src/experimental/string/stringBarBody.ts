@@ -54,6 +54,11 @@ export interface BarOnBoard {
   /** Where the mallet strikes it, and where its two supports are, as fractions of its length. */
   strikeAt: number
   supports: [number, number]
+  /**
+   * For analysis only (Phase 3D.7): keep this many bending modes. 0 is a bar that cannot bend: a rigid
+   * lump of the same mass on the same pads, which shows what the mounting does by itself. Absent: all.
+   */
+  bendingModes?: number
 }
 
 /** Aluminium, as the builder's. */
@@ -85,6 +90,7 @@ export function barOnBoardModes(b: BarOnBoard, sampleRate: number): Mode[] {
   const bending = barModeFrequencies(b)
     .map((frequency, n): Mode => ({ frequency, t60: 1 / (1 / 6 + (b.lossFactor * frequency) / 2.2), mass, shape: at.map((xi) => barModeShape(n, xi)) }))
     .filter((mode) => mode.frequency < 0.45 * sampleRate)
+    .slice(0, b.bendingModes ?? Infinity)
   return [...rigid, ...bending]
 }
 
@@ -224,3 +230,26 @@ export const PROTOTYPE: StringBarBody = { tension: 73.5, length: 0.65, pluckAt: 
  *     the string's 6th harmonic (659.5 Hz).
  */
 export const TUNED: StringBarBody = { ...PROTOTYPE, bar: { ...SMALL_BAR, length: 0.1987, supports: [0.215, 0.785] } }
+
+// ---- Phase 3D.7: mounting and playability candidates (docs/THREE_BODY_MOUNTING.md) -----------------------------
+
+/**
+ * Candidate A, "soft mount". The tuned bar on softer, lightly damped pads
+ * (1e5 N/m and 1 N s/m each, a tenth of the stiffness) still close to its
+ * nodes, struck at its middle, and 0.6 mm longer so that its note as it
+ * stands is again the string's 6th harmonic. The string, its bridge and the
+ * body are the approved ones. The knock of a stroke is 4 dB lower and the
+ * bar's note lasts as long as the bar's own material lets it.
+ */
+export const SOFT_MOUNT: StringBarBody = { ...PROTOTYPE, bar: { ...SMALL_BAR, length: 0.1993, supports: [0.215, 0.785], strikeAt: 0.5 }, mount: { stiffness: 1e5, damping: 1 } }
+
+/**
+ * Candidate B, "soft mount, bridge moved". Candidate A with the string's
+ * bridge at (0.08, 0.44) of the board instead of the approved (0.08, 1/3):
+ * off the nodal line, so the string gives the board more. This is a
+ * different body from the approved one, in this prototype only.
+ */
+export const SOFT_MOUNT_BRIDGE: StringBarBody = { ...SOFT_MOUNT, bridgeAt: [0.08, 0.44] }
+
+/** A way of playing, not a part of the instrument: a small mallet (5 g, the same hardness) at 1 m/s. */
+export const LIGHT_MALLET = { mallet: { mass: 0.005, stiffness: 1e8 }, stroke: 1 }

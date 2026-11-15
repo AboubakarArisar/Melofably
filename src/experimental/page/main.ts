@@ -7,7 +7,7 @@ import { barModes, instrumentCalls, LISTENER_FULL_SCALE, liveCalls, PRESSURE_FUL
 import { radiationWeights } from '../radiation/barRadiation.ts'
 import { CANDIDATES, design } from '../radiation/hybridCandidates.ts'
 import { buildInstrument, STRING_PLUCK } from '../string/instrument.ts'
-import { buildStringBarBody, PROTOTYPE, TUNED, type StringBarBody } from '../string/stringBarBody.ts'
+import { buildStringBarBody, PROTOTYPE, SOFT_MOUNT, SOFT_MOUNT_BRIDGE, TUNED, type StringBarBody } from '../string/stringBarBody.ts'
 import { buildPlayableStringBody, pluckCall, radiation } from '../string/stringBody.ts'
 import { DEFAULT_LOSS, type StringParams } from '../string/modalString.ts'
 import { plateModes, SPRUCE_PLATE, type PlateParams } from '../string/soundboard.ts'
@@ -864,12 +864,40 @@ async function integratedThreeBody() {
  * `seconds` each: plucked and struck in turn about ten times a second; the tuned one again while the
  * bar's pads are made stiffer and softer, and more and less damped, about 17 times a second.
  */
-async function threeBodyBench(seconds = 20) {
+/**
+ * Phase 3D.7. What the output device does with no physics engine at all, for `seconds` each: a context
+ * with nothing connected, and one with an oscillator at no volume. Underruns here are the device's.
+ */
+async function deviceBaseline(seconds = 10) {
   await stop()
   const results: Record<string, unknown> = {}
-  for (const name of ['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'three parts, tuned, plucked and struck', 'three parts, tuned, plucked and struck while the pads are edited'] as const) {
+  for (const name of ['empty AudioContext', 'oscillator, no engine'] as const) {
     const ctx = new AudioContext({ latencyHint: 'interactive' })
-    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : TUNED, ctx.sampleRate)
+    if (name !== 'empty AudioContext') {
+      const oscillator = new OscillatorNode(ctx)
+      oscillator.connect(new GainNode(ctx, { gain: 0 })).connect(ctx.destination)
+      oscillator.start()
+    }
+    await ctx.resume()
+    await sleep(1000)
+    const stats = (ctx as AudioContext & { playbackStats?: PlaybackStats }).playbackStats
+    const [u0, c0, t0] = [stats?.underrunEvents ?? 0, ctx.currentTime, performance.now()]
+    while (performance.now() - t0 < seconds * 1000) await sleep(50)
+    results[name] = { state: ctx.state, secondsOfAudio: Number((ctx.currentTime - c0).toFixed(2)), secondsOfClock: Number(((performance.now() - t0) / 1000).toFixed(2)), deviceDropouts: stats ? stats.underrunEvents - u0 : 'not reported', baseLatency: ctx.baseLatency, outputLatency: ctx.outputLatency, sampleRate: ctx.sampleRate }
+    await ctx.close()
+  }
+  return { hidden: document.hidden, results }
+}
+
+async function threeBodyBench(seconds = 20, candidates = false) {
+  await stop()
+  const results: Record<string, unknown> = {}
+  const names = candidates
+    ? (['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'candidate A (soft mount), plucked and struck', 'candidate B (soft mount, bridge moved), plucked and struck', 'candidate A, plucked and struck while the pads are edited'] as const)
+    : (['approved string on its box, plucked', 'three parts, prototype, plucked and struck', 'three parts, tuned, plucked and struck', 'three parts, tuned, plucked and struck while the pads are edited'] as const)
+  for (const name of names) {
+    const ctx = new AudioContext({ latencyHint: 'interactive' })
+    const three = threeBodyCalls(/prototype/.test(name) ? PROTOTYPE : /candidate A/.test(name) ? SOFT_MOUNT : /candidate B/.test(name) ? SOFT_MOUNT_BRIDGE : TUNED, ctx.sampleRate)
     const box = buildPlayableStringBody({ tension: 73.5, length: 0.65, pluckAt: 0.8, joined: true }, ctx.sampleRate)
     const approved = /approved/.test(name)
     const calls = approved ? ([...box.calls, three.calls.at(-1)!] as Call[]) : three.calls
@@ -885,7 +913,7 @@ async function threeBodyBench(seconds = 20) {
       if (i % 2 === 0) physics.send([play[(i / 2) % play.length]])
       if (/edited/.test(name)) {
         const [a, b] = three.built.supports!
-        const [stiffness, damping] = [i % 2 ? 1e6 : 3e5, i % 4 < 2 ? 5 : 30]
+        const [stiffness, damping] = candidates ? [i % 2 ? 1e5 : 3e4, i % 4 < 2 ? 1 : 5] : [i % 2 ? 1e6 : 3e5, i % 4 < 2 ? 5 : 30]
         physics.send([['setStiffness', a, stiffness, RAMP, 480], ['setStiffness', b, stiffness, RAMP, 480], ['setDamping', a, damping], ['setDamping', b, damping]])
         edits++
       }
@@ -908,7 +936,7 @@ async function threeBodyBench(seconds = 20) {
     }
     physics.dispose()
     await ctx.close()
-    el.results.textContent = `three-part benchmark... ${Object.keys(results).length} of 4 done`
+    el.results.textContent = `three-part benchmark... ${Object.keys(results).length} of ${names.length} done`
   }
   return { userAgent: navigator.userAgent, hidden: document.hidden, results }
 }
@@ -943,4 +971,4 @@ applyEdits('all')
 render()
 
 // For driving the page from the developer console.
-Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, integratedRadiated, radiatorBench, integratedThreeBody, threeBodyBench, livePeak, counts } })
+Object.assign(window, { sonicmatterExperimental: { start, stop, strike, mallet, send, status, rapid, verify, bench, dropoutCheck, stringBench, integrated, radiationBench, integratedRadiated, radiatorBench, integratedThreeBody, threeBodyBench, deviceBaseline, livePeak, counts } })

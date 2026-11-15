@@ -152,6 +152,13 @@ its fundamental, and a well-mounted bar rings through the board; the two
 exchange little energy and a stroke is far louder than a pluck. See
 [THREE_BODY.md](THREE_BODY.md).
 
+Phase 3D.7 (research, awaiting review): why. A stroke's knock is the
+mallet's push reaching the board; the string keeps 98.7 % of its energy and
+the damped board absorbs most of the rest. A softer mount gives a quieter,
+longer stroke but cuts the bar off from the string, and moving the bridge
+brings back a resonance the approved body removed. Still isolated. See
+[THREE_BODY_MOUNTING.md](THREE_BODY_MOUNTING.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

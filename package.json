@@ -33,6 +33,7 @@
     "render:hybrid-study": "node analysis/render-hybrid-study.ts",
     "render:tuned-example": "node analysis/render-tuned-example.ts",
     "render:three-body": "node analysis/render-three-body.ts",
+    "render:three-body-mounting": "node analysis/render-three-body-mounting.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"
