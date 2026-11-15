@@ -94,6 +94,46 @@ export function barOnBoardModes(b: BarOnBoard, sampleRate: number): Mode[] {
   return [...rigid, ...bending]
 }
 
+/**
+ * One of the bar's two pads.
+ *
+ * As first built (Phases 3D.6 and 3D.7) a pad is a spring and a damper side
+ * by side (a Kelvin-Voigt element): force = k x + c dx/dt.
+ *
+ * Phase 3D.8 adds, optionally, a second path beside them, which makes the
+ * pad a standard linear solid (a Zener element), the simplest model of a
+ * rubber or felt that is soft when moved slowly and stiffer when moved
+ * fast: a spring `relaxing.stiffness` from the bar to a small lump of the
+ * pad's own material (`relaxing.mass`), and a damper `relaxing.damping`
+ * from that lump to the board. Moved slowly, the damper lets the lump
+ * follow the bar and the path carries no force; moved fast, the damper
+ * holds the lump and the path's spring adds its stiffness. The lump is the
+ * pad's one internal state. Every part is an ordinary spring, damper or
+ * mass of the engine, so the pad stores energy only in its springs and its
+ * lump, loses it only in its dampers, and can never give more than it was
+ * given, whatever the numbers (all of them non-negative).
+ */
+export interface Mount {
+  /** The spring that always acts, N/m, and the damper beside it, N s/m. */
+  stiffness: number
+  damping: number
+  relaxing?: { stiffness: number; damping: number; mass: number }
+}
+
+/** Time for the relaxing path's force to die away when the pad is held still, s: damper over spring. */
+export const relaxationTime = (m: Mount) => (m.relaxing ? m.relaxing.damping / m.relaxing.stiffness : 0)
+/**
+ * The pad's stiffness as the bar feels it at `frequency` Hz, N/m, as [what pushes back, what takes
+ * energy], leaving out the lump's small inertia: k + k1 (w t)^2 / (1 + (w t)^2) and
+ * c w + k1 w t / (1 + (w t)^2). Their ratio is the pad's loss factor.
+ */
+export function padStiffness(m: Mount, frequency: number): [number, number] {
+  const w = 2 * Math.PI * frequency
+  const wt = w * relaxationTime(m)
+  const k1 = m.relaxing?.stiffness ?? 0
+  return [m.stiffness + (k1 * wt * wt) / (1 + wt * wt), m.damping * w + (k1 * wt) / (1 + wt * wt)]
+}
+
 export interface StringBarBody {
   /** The string: tension N, length m, where it is plucked (fraction from the nut). */
   tension: number
@@ -110,7 +150,7 @@ export interface StringBarBody {
    */
   barAt: [number, number]
   /** Each of the bar's two supports: a spring (N/m) and a damper (N s/m). null: the bar does not stand on the board. */
-  mount: { stiffness: number; damping: number } | null
+  mount: Mount | null
   /** Optional: a spring and damper straight from the string's end to the bar's end. Absent: none. */
   direct?: { stiffness: number; damping: number }
   /** A mallet for the bar: mass (kg) and Hertz contact stiffness (N/m^1.5). */
@@ -139,6 +179,9 @@ export interface BuiltStringBarBody extends Playing {
   /** Engine connections: the bridge, the bar's two supports (if mounted), the mallet's contact and the direct tie (if any). */
   bridge: number
   supports?: [number, number]
+  /** Phase 3D.8, for pads with a relaxing path: each pad's lump (engine resonator) and its path's spring and damper (engine connections). */
+  padLumps?: [number, number]
+  padPaths?: [[spring: number, damper: number], [spring: number, damper: number]]
   mallet?: number
   direct?: number
   modes: { string: number; board: number; bar: number }
@@ -189,6 +232,20 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
     calls.push(['addSpring', bar, BAR_SUPPORT_A, built.body, BOARD_SUPPORT_A, s.mount.stiffness, s.mount.damping, 0, 0])
     calls.push(['addSpring', bar, BAR_SUPPORT_B, built.body, BOARD_SUPPORT_B, s.mount.stiffness, s.mount.damping, 0, 0])
   }
+  let padLumps: [number, number] | undefined
+  let padPaths: BuiltStringBarBody['padPaths']
+  if (s.mount?.relaxing) {
+    const { stiffness, damping, mass } = s.mount.relaxing
+    const path = (barPort: number, boardPort: number): [number, [number, number]] => {
+      const lump = resonators++
+      calls.push(['addResonator', 1, 1], ['setShape', lump, 0, 0, 1], ['setMode', lump, 0, 0, Infinity, mass])
+      calls.push(['addSpring', bar, barPort, lump, 0, stiffness, 0, 0, 0], ['addSpring', lump, 0, built.body, boardPort, 0, damping, 0, 0])
+      return [lump, [connections++, connections++]]
+    }
+    const [a, b] = [path(BAR_SUPPORT_A, BOARD_SUPPORT_A), path(BAR_SUPPORT_B, BOARD_SUPPORT_B)]
+    padLumps = [a[0], b[0]]
+    padPaths = [a[1], b[1]]
+  }
   let direct: number | undefined
   if (s.direct) {
     direct = connections++
@@ -204,7 +261,7 @@ export function buildStringBarBody(s: StringBarBody, sampleRate: number): BuiltS
   }
   calls.push(['build'])
   // The plug of air is the resonator buildInstrument adds after the board; the ground follows it.
-  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, mallet, direct, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
+  return { calls, string, pluckPort: STRING_PLUCK, finger, board: built.body, plug: built.body + 1, bar, malletHead, bridge: built.bridges[0], supports, padLumps, padPaths, mallet, direct, modes: { string: built.modes.strings[0], board: built.modes.body, bar: modes.length } }
 }
 
 // ---- The two configurations of the feasibility study (docs/THREE_BODY.md) -----------------------------------
@@ -253,3 +310,25 @@ export const SOFT_MOUNT_BRIDGE: StringBarBody = { ...SOFT_MOUNT, bridgeAt: [0.08
 
 /** A way of playing, not a part of the instrument: a small mallet (5 g, the same hardness) at 1 m/s. */
 export const LIGHT_MALLET = { mallet: { mass: 0.005, stiffness: 1e8 }, stroke: 1 }
+
+// ---- Phase 3D.8: a more realistic pad (docs/THREE_BODY_PADS.md) -------------------------------------------------
+
+/**
+ * Candidate C, "viscoelastic pads". The bar of the soft mount (pads at 0.215
+ * and 0.785, struck at its middle; 0.1 mm longer so that its note as it
+ * stands is the string's 6th harmonic) on pads that are a standard linear
+ * solid: 2e4 N/m when moved slowly, 2.2e5 N/m when moved fast, with the
+ * change centred near 60 Hz (relaxation time 2.65 ms: a damper of 530 N s/m
+ * behind a spring of 2e5 N/m), a lump of 0.2 g, and a little plain damping
+ * beside it. Its loss factor is 0.32 at 168 Hz and 0.09 at the bar's note:
+ * it damps the bar's bouncing more than its ringing, which a spring and
+ * damper side by side cannot do.
+ */
+export const VISCO_MOUNT: StringBarBody = { ...SOFT_MOUNT, bar: { ...SOFT_MOUNT.bar, length: 0.1994 }, mount: { stiffness: 2e4, damping: 0.5, relaxing: { stiffness: 2e5, damping: 530, mass: 0.0002 } } }
+
+/**
+ * The plain pad nearest to candidate C, for an honest comparison: a spring
+ * and damper side by side with C's stiffness at the bar's note (2.2e5 N/m)
+ * and nearly its loss there (3.4 N s/m: loss factor 0.064). The same bar.
+ */
+export const MEDIUM_MOUNT: StringBarBody = { ...VISCO_MOUNT, mount: { stiffness: 2.2e5, damping: 3.4 } }

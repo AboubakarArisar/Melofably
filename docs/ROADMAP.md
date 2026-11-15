@@ -159,6 +159,14 @@ longer stroke but cuts the bar off from the string, and moving the bridge
 brings back a resonance the approved body removed. Still isolated. See
 [THREE_BODY_MOUNTING.md](THREE_BODY_MOUNTING.md).
 
+Phase 3D.8 (research, awaiting review): a more realistic pad under the bar
+(a standard linear solid, soft when moved slowly and stiffer when moved
+fast), built from the engine's own parts and validated. It lowers the knock
+by one to three decibels at equal bar note, for a third more processor time:
+not worth adopting. The useful middle between the earlier mounts comes from
+the pad's stiffness, which a plain pad gives too. See
+[THREE_BODY_PADS.md](THREE_BODY_PADS.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

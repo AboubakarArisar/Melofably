@@ -4,7 +4,8 @@
 // and analysis/render-three-body.ts. Everything runs through the browser's
 // own AudioWorklet processor file (analysis/worklet.ts).
 import { malletStiffness } from '../src/builder/translate.ts'
-import { buildPlayableStringBody, pluckCall, radiation, stringPitch } from '../src/experimental/string/stringBody.ts'
+import { buildPlayableStringBody, pluckCall, radiation, stringPitch, touchCall } from '../src/experimental/string/stringBody.ts'
+import { barOnBoardModes } from '../src/experimental/string/stringBarBody.ts'
 import { BAR_STRIKE, BAR_SUPPORT_A, BAR_SUPPORT_B, BOARD_BRIDGE, BOARD_RADIATION, BOARD_SUPPORT_A, BOARD_SUPPORT_B, buildStringBarBody, PROTOTYPE, SMALL_BAR, TUNED, type BarOnBoard, type StringBarBody } from '../src/experimental/string/stringBarBody.ts'
 import type { Call } from '../src/experimental/wasm/engine.ts'
 import { SR } from './lib.ts'
@@ -72,8 +73,14 @@ export interface Run {
   dissipated: number
   /** Phase 3D.7. Velocity of each of the bar's modes, m/s: [up and down, rocking, bending 1, bending 2, ...]. */
   barModes: Float32Array[]
-  /** Energy the two pads' dampers took, J, over the whole run. */
+  /** Energy the two pads' dampers took, J, over the whole run (both dampers of a pad with a relaxing path). */
   padLoss: number
+  /** Phase 3D.8. Of that, what the relaxing paths' dampers took, J. */
+  padPathLoss: number
+  /** Most the pads held at once, J: in their springs and, where they have them, their lumps. Part of `energy.total`. */
+  padStoredPeak: number
+  /** Energy the bar's own material took, J: each mode's damping times its velocity squared, over the run. */
+  barLoss: number
   /** All the energy that ever crossed the bridge from string to board, and back, J. */
   toBoard: number
   fromBoard: number
@@ -88,7 +95,7 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
   // One extra read-only port per bar mode (its modal velocity), after the bar's own four.
   const count = built.modes.bar
   const probed = withPorts(o.lossless ? lossless(built.calls) : built.calls, built.bar, Array.from({ length: count }, (_, p) => Array.from({ length: count }, (_, n) => (n === p ? 1 : 0))))
-  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], ['addTap', built.board, BOARD_BRIDGE], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B], ...Array.from({ length: count }, (_, n): Call => ['addTap', built.bar, probed.first + n])]
+  const watch: Call[] = [['addTap', built.string, 2], ['addTap', built.bar, BAR_STRIKE], ['addTap', built.board, BOARD_RADIATION], ['addTap', built.board, BOARD_BRIDGE], ['addTap', built.bar, BAR_SUPPORT_A], ['addTap', built.bar, BAR_SUPPORT_B], ['addTap', built.board, BOARD_SUPPORT_A], ['addTap', built.board, BOARD_SUPPORT_B], ...Array.from({ length: count }, (_, n): Call => ['addTap', built.bar, probed.first + n]), ...(built.padLumps ?? []).map((lump): Call => ['addTap', lump, 0])]
   const worklet = await createWorklet([...probed.calls, ...watch, ['radiate', r.perSample, r.b0, r.b1, r.a1, FULL_SCALE]])
   const engine = worklet.engine
   const taps = new Float64Array(engine.memory.buffer, engine.tapPointer(), 32 * 128)
@@ -105,9 +112,13 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     pressure: new Float32Array(samples), stringVelocity: new Float32Array(samples), barVelocity: new Float32Array(samples), boardVelocity: new Float32Array(samples),
     energy: { string: new Float64Array(blocks), board: new Float64Array(blocks), air: new Float64Array(blocks), bar: new Float64Array(blocks), mallet: new Float64Array(blocks), total: new Float64Array(blocks) },
     peak: { string: 0, board: 0, bar: 0, in: 0 }, malletGave: 0, bridgeWork: new Float64Array(blocks), supportWork: new Float64Array(blocks), toBar: 0, fromBar: 0, dissipated: 0, faults: 0, worstIterations: 0,
-    barModes: Array.from({ length: count }, () => new Float32Array(samples)), padLoss: 0, toBoard: 0, fromBoard: 0,
+    barModes: Array.from({ length: count }, () => new Float32Array(samples)), padLoss: 0, padPathLoss: 0, padStoredPeak: 0, barLoss: 0, toBoard: 0, fromBoard: 0,
   }
   const padDamping = o.lossless ? 0 : (s.mount?.damping ?? 0)
+  const pathDamping = o.lossless ? 0 : (s.mount?.relaxing?.damping ?? 0)
+  const barModel = barOnBoardModes(s.bar, SR)
+  // A mode's damper is 2 x (its amplitude decay rate) x its mass.
+  const barDamping = barModel.map((mode) => (o.lossless || !Number.isFinite(mode.t60) ? 0 : (2 * Math.log(1000) * mode.mass) / mode.t60))
   let [bridge, support] = [0, 0]
   for (let i = 0; i < samples; i++) {
     out.pressure[i] = worklet.render(1)[0] * FULL_SCALE
@@ -123,6 +134,22 @@ export async function measure(s: StringBarBody, playing: Playing, seconds = 3, o
     for (let n = 0; n < count; n++) out.barModes[n][i] = taps[(8 + n) * 128]
     // A pad's damper takes c x (the speed across it)^2.
     if (built.supports) out.padLoss += (padDamping * ((taps[4 * 128] - taps[6 * 128]) ** 2 + (taps[5 * 128] - taps[7 * 128]) ** 2)) / SR
+    for (let n = 0; n < count; n++) out.barLoss += (barDamping[n] * taps[(8 + n) * 128] ** 2) / SR
+    if (built.padLumps) {
+      // The relaxing path's damper sits between the pad's lump and the board.
+      const path = (pathDamping * ((taps[(8 + count) * 128] - taps[6 * 128]) ** 2 + (taps[(9 + count) * 128] - taps[7 * 128]) ** 2)) / SR
+      out.padLoss += path
+      out.padPathLoss += path
+    }
+    if (built.supports && i % 16 === 0) {
+      let stored = 0
+      for (const k of built.supports) stored += 0.5 * s.mount!.stiffness * engine.connectionStretch(k) ** 2
+      if (built.padPaths && built.padLumps) {
+        for (const [spring] of built.padPaths) stored += 0.5 * s.mount!.relaxing!.stiffness * engine.connectionStretch(spring) ** 2
+        for (const lump of built.padLumps) stored += engine.resonatorEnergy(lump)
+      }
+      out.padStoredPeak = Math.max(out.padStoredPeak, stored)
+    }
     if (built.supports) {
       const power = -(engine.connectionForce(built.supports[0]) * taps[4 * 128] + engine.connectionForce(built.supports[1]) * taps[5 * 128])
       support += power / SR
@@ -210,4 +237,36 @@ export function fallTime(x: ArrayLike<number>, down = 20): number | null {
   const at = env.indexOf(best)
   for (let i = at; i < env.length; i++) if (env[i] < best * 10 ** (-down / 10)) return ((i - at) * w) / SR
   return null
+}
+
+/** Phase 3D.8. Something done at a moment: seconds from the start, and what (given the built system) to send. */
+export interface Event {
+  at: number
+  calls: (built: ReturnType<typeof buildStringBarBody>) => Call[]
+}
+export const pluckAt = (at: number, force = PLUCK): Event => ({ at, calls: (b) => [pluckCall(b, force)] })
+export const strikeAt = (at: number, velocity = STROKE): Event => ({ at, calls: (b) => [['launch', b.mallet!, velocity]] })
+/** A finger laid on the string (and left there) or lifted, as the builder's Hold to mute does. */
+export const touchAt = (at: number, s: StringBarBody, on: boolean): Event => ({ at, calls: (b) => [touchCall(b, s, on)] })
+
+/**
+ * The prototype played through a list of events, in blocks of 128 as a browser makes them: the
+ * pressure (Pa), the instrument's energy (without the mallet's) at every block, and the engine's health.
+ */
+export async function perform(s: StringBarBody, events: Event[], seconds: number) {
+  const built = buildStringBarBody(s, SR)
+  const r = radiation(SR)
+  const worklet = await createWorklet([...built.calls, ['radiate', r.perSample, r.b0, r.b1, r.a1, 64]])
+  const due = events.map((e) => ({ block: Math.round((e.at * SR) / 128), calls: e.calls(built) }))
+  const energy: number[] = []
+  const pressure = worklet.render(Math.round(seconds * SR), (block) => {
+    for (const e of due) if (e.block === block) worklet.send(e.calls)
+    energy.push(worklet.engine.energy() - (built.malletHead === undefined ? 0 : worklet.engine.resonatorEnergy(built.malletHead)))
+  }).map((v) => v * 64)
+  let [peak, jump] = [0, 0]
+  for (let i = 1; i < pressure.length; i++) {
+    peak = Math.max(peak, Math.abs(pressure[i]))
+    jump = Math.max(jump, Math.abs(pressure[i] - pressure[i - 1]))
+  }
+  return { pressure, energy, faults: worklet.engine.faults(), worstIterations: worklet.engine.worstIterations(), clipped: peak >= 64, largestStepOverPeak: jump / peak, stringEnergy: worklet.engine.resonatorEnergy(built.string), built }
 }

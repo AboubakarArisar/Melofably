@@ -34,6 +34,7 @@
     "render:tuned-example": "node analysis/render-tuned-example.ts",
     "render:three-body": "node analysis/render-three-body.ts",
     "render:three-body-mounting": "node analysis/render-three-body-mounting.ts",
+    "render:three-body-pads": "node analysis/render-three-body-pads.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

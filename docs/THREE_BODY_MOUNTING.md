@@ -413,3 +413,7 @@ Reference WAV hashes are unchanged.
    soundboard, which is a larger design question than this prototype.
 6. Not ready for the builder, for the reasons given in Phase 3D.6, which
    still hold.
+
+## 11. What followed (Phase 3D.8)
+
+Recommendation 4 above was carried out: a pad with a relaxing path (a standard linear solid) was built and validated in the prototype. It moves the trade between knock and note by one to three decibels and costs a third more to compute, so the plain pad is kept. See [THREE_BODY_PADS.md](THREE_BODY_PADS.md).

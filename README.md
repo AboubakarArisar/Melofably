@@ -39,6 +39,7 @@ Documentation:
 - [Why the radiated hybrid's pluck is quiet, and two physically tuned candidates](docs/HYBRID_PLAYABILITY.md)
 - [Three coupled parts: a string and a metal bar on one soundboard (feasibility prototype)](docs/THREE_BODY.md)
 - [Three coupled parts: mounting and playability (the knock of a stroke, the string's reach, two candidates)](docs/THREE_BODY_MOUNTING.md)
+- [Three coupled parts: a more realistic pad under the bar, and what it is worth](docs/THREE_BODY_PADS.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -106,6 +107,7 @@ experimental engine's test page at http://localhost:5173/experimental.html
 | `npm run render:tuned-example` | Render the tuned radiated example against the original radiated example (one comparison file at a common gain, and level-matched files), into `renders/tuned-example/` |
 | `npm run render:three-body` | Measure and render the three-part feasibility prototype (string, metal bar and damped body as one system): energy transfer, pitch, exploration, cost and listening files, into `renders/three-body/` |
 | `npm run render:three-body-mounting` | Measure the three-part prototype's mounting (what a stroke's knock is, where a pluck's energy goes), explore pads, mallet and bridge, and render the candidates, into `renders/three-body-mounting/` |
+| `npm run render:three-body-pads` | Compare the bar's mounts (stiff, soft, viscoelastic, and a plain pad of the same stiffness): energy budget, knock against note, playability, cost, and listening files with a manifest, into `renders/three-body-pads/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |
