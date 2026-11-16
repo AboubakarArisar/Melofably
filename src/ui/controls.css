@@ -410,6 +410,9 @@ dialog.m-dialog[open] {
   border-bottom: 1px solid var(--m-border);
 }
 .m-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -555,4 +558,10 @@ button.m-key:focus-visible {
     flex: none;
     width: 640px;
   }
+}
+
+.m-wordmark img {
+  display: block;
+  height: 28px;
+  width: auto;
 }
