@@ -11,14 +11,14 @@ const SCOPE_SAMPLES = 2048
 const freqToX = (f: number) => (Math.log(f / F_MIN) / Math.log(F_MAX / F_MIN)) * W
 
 function clear(g: CanvasRenderingContext2D) {
-  g.fillStyle = '#0a0a0a'
+  g.fillStyle = '#fffaf3'
   g.fillRect(0, 0, W, H)
   g.lineWidth = 1
 }
 
 function drawWaveform(g: CanvasRenderingContext2D, samples: Float32Array) {
   clear(g)
-  g.strokeStyle = '#262626'
+  g.strokeStyle = '#e6d9ce'
   g.beginPath()
   g.moveTo(0, H / 2)
   g.lineTo(W, H / 2)
@@ -28,7 +28,7 @@ function drawWaveform(g: CanvasRenderingContext2D, samples: Float32Array) {
   const limit = samples.length - SCOPE_SAMPLES
   while (start < limit && !(samples[start - 1] < 0 && samples[start] >= 0)) start++
   if (start === limit) start = 0
-  g.strokeStyle = '#34d399'
+  g.strokeStyle = '#790b13'
   g.beginPath()
   for (let i = 0; i < SCOPE_SAMPLES; i++) {
     const x = (i / (SCOPE_SAMPLES - 1)) * W
@@ -42,8 +42,8 @@ function drawWaveform(g: CanvasRenderingContext2D, samples: Float32Array) {
 function drawSpectrum(g: CanvasRenderingContext2D, db: Float32Array, sampleRate: number, fundamental: number) {
   clear(g)
   g.font = '11px monospace'
-  g.fillStyle = '#737373'
-  g.strokeStyle = '#262626'
+  g.fillStyle = '#746566'
+  g.strokeStyle = '#e6d9ce'
   for (const f of [100, 1000, 10000]) {
     g.beginPath()
     g.moveTo(freqToX(f), 0)
@@ -52,12 +52,12 @@ function drawSpectrum(g: CanvasRenderingContext2D, db: Float32Array, sampleRate:
     g.fillText(f < 1000 ? `${f} Hz` : `${f / 1000} kHz`, freqToX(f) + 4, H - 4)
   }
   // Where the formula says the fundamental should be.
-  g.strokeStyle = '#f59e0b'
+  g.strokeStyle = '#a8650f'
   g.beginPath()
   g.moveTo(freqToX(fundamental), 0)
   g.lineTo(freqToX(fundamental), H)
   g.stroke()
-  g.strokeStyle = '#34d399'
+  g.strokeStyle = '#790b13'
   g.beginPath()
   const binHz = sampleRate / (2 * db.length)
   for (let k = 1; k < db.length; k++) {
@@ -109,7 +109,7 @@ export function Visualizer({ analyser, fundamental }: Props) {
       </figure>
       <figure>
         <figcaption className="mb-1 text-neutral-400">
-          Spectrum <span className="text-amber-500">(line: calculated fundamental)</span>
+          Spectrum <span className="text-amber-300">(line: calculated fundamental)</span>
         </figcaption>
         <canvas ref={spectrum} width={W} height={H} className="w-full rounded border border-neutral-800 bg-neutral-950" />
       </figure>

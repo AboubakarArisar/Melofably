@@ -149,3 +149,7 @@ The same configuration. The suite is 522 tests in 31 files. The runs made are re
 ## MVP: the hybrid in the builder
 
 The same configuration. The suite is 526 tests in 32 files. The page was also driven through its 14-step workflow in a browser; see the delivery report.
+
+## Melofably rebrand and redesign
+
+The same configuration and the same 526 tests in 32 files: the redesign changes styles, markup and names, not behaviour. The pages were checked in a browser at desktop and phone widths; see the delivery report.

@@ -2,7 +2,9 @@
 // one string-on-a-bar-bridge assembly a validated model exists for. Its
 // parts and connections are fixed; their sizes, places and strengths are
 // the user's. What it is: hybrid.ts. How it sounds: hybridAudio.ts.
+import { FolderOpen, Hand, Power, Save, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 import { COMPONENTS, CONNECTIONS, TARGETS, type Graph } from '../experimental/graph2/model.ts'
 import { validate, type Issue } from '../experimental/graph2/validate.ts'
 import { FULL_SCALE, keyAction, PLUCK_FORCE, pluckLevel, STRIKE_SPEED, strikeLevel, type Strength } from '../experimental/hybrid/instrument.ts'
@@ -153,6 +155,7 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
       setNotice('Audio is on. Pluck the string (A) or strike the bar (S).')
     } catch (error) {
       setFailure(`Audio could not start: ${error instanceof Error ? error.message : String(error)}`)
+      toast.error('Audio could not start. The reason is shown on the page.')
     }
     setBusy(false)
   }
@@ -230,13 +233,15 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
   }, [])
 
   const save = () => {
-    if (text === null) return setNotice('This instrument has problems, so it was not saved: a broken instrument must never replace a good one.')
+    if (text === null) return void (setNotice('This instrument has problems, so it was not saved: a broken instrument must never replace a good one.'), toast.error('Not saved: fix the problems listed on the page first.'))
     try {
       localStorage.setItem(HYBRID_STORAGE_KEY, text)
       setSavedText(text)
       setNotice(`Saved in this browser as "${graph.meta.name}".`)
+      toast.success(`Saved "${graph.meta.name}"`)
     } catch {
       setNotice('This browser would not store the instrument (private window, or storage is blocked).')
+      toast.error('This browser would not store the instrument.')
     }
   }
   const open = (next: Graph, message: string) => {
@@ -245,8 +250,13 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
   }
   const openSaved = () => {
     const saved = openText(stored())
-    if (saved.graph) open(saved.graph, `Opened your saved instrument "${saved.graph.meta.name}".`)
-    else setNotice(saved.problem ? `The saved instrument could not be used and was left as it is. ${saved.problem}` : 'Nothing has been saved in this browser yet.')
+    if (saved.graph) {
+      open(saved.graph, `Opened your saved instrument "${saved.graph.meta.name}".`)
+      toast.success(`Opened "${saved.graph.meta.name}"`)
+    } else {
+      toast.error(saved.problem ? 'The saved instrument could not be used. It was left as it is.' : 'Nothing has been saved yet.')
+      setNotice(saved.problem ? `The saved instrument could not be used and was left as it is. ${saved.problem}` : 'Nothing has been saved in this browser yet.')
+    }
   }
 
   // For driving the page from the developer console and from browser checks.
@@ -271,7 +281,7 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
   return (
     <div className="mx-auto max-w-[1500px] p-4 text-neutral-100">
       <header className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">Instrument builder</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Instrument builder</h1>
         <span className="rounded bg-amber-300 px-2 py-0.5 text-xs font-semibold text-neutral-950">Experimental hybrid</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <label htmlFor="hybrid-instrument" className="sr-only">
@@ -300,9 +310,11 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
             </optgroup>
           </select>
           <button className={button} onClick={save} disabled={!unsaved || text === null}>
-            {unsaved ? 'Save in this browser' : 'Saved'}
+            <Save aria-hidden="true" />
+            {unsaved ? 'Save instrument' : 'Saved'}
           </button>
           <button className={button} onClick={openSaved} disabled={savedText === null}>
+            <FolderOpen aria-hidden="true" />
             Open saved
           </button>
         </div>
@@ -311,11 +323,13 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
       <section aria-label="Audio and playing" className={`mb-4 flex flex-wrap items-center gap-3 ${panel}`}>
         {running && !suspended ? (
           <button className={button} onClick={stop} disabled={busy}>
+            <Square aria-hidden="true" />
             Stop audio
           </button>
         ) : (
           <button className={primary} onClick={start} disabled={busy}>
-            {suspended ? 'Resume audio' : 'Start audio'}
+            <Power aria-hidden="true" />
+            {busy ? 'Starting…' : suspended ? 'Resume audio' : 'Start audio'}
           </button>
         )}
         <button className={primary} onPointerDown={(e) => e.button === 0 && pluck()} onClick={(e) => e.detail === 0 && pluck()} disabled={!running} title="A">
@@ -325,9 +339,11 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
           Strike bar (S)
         </button>
         <button className={`${button} ${fingers.mute ? held : ''}`} aria-pressed={fingers.mute} disabled={!running} onClick={() => finger('mute', 'latch', !fingers.muteLatch)} title="Stays down until pressed again. Or hold M.">
+          <Hand aria-hidden="true" />
           {fingers.mute ? 'Finger on the string' : 'Mute string (M)'}
         </button>
         <button className={`${button} ${fingers.damp ? held : ''}`} aria-pressed={fingers.damp} disabled={!running} onClick={() => finger('damp', 'latch', !fingers.dampLatch)} title="Stays down until pressed again. Or hold D.">
+          <Hand aria-hidden="true" />
           {fingers.damp ? 'Finger on the bar' : 'Damp bar (D)'}
         </button>
         <label className="flex items-center gap-2 text-sm text-neutral-300">
@@ -354,38 +370,38 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="min-w-0">
           <svg viewBox="0 0 900 330" role="img" aria-label="The instrument from above: a string tied to a metal bar that stands on two pads on a soundboard" className={`w-full ${panel}`}>
-            <rect x={BOARD.x} y={BOARD.y} width={BODY.plate.length * PX} height={BODY.plate.width * PX} rx="4" fill="#2a2118" stroke="#6b563c" />
-            <text x={BOARD.x + BODY.plate.length * PX - 6} y={BOARD.y + 16} textAnchor="end" fill="#9aa3ad" fontSize="12">
+            <rect x={BOARD.x} y={BOARD.y} width={BODY.plate.length * PX} height={BODY.plate.width * PX} rx="4" fill="#ecd9bc" stroke="#b79b74" />
+            <text x={BOARD.x + BODY.plate.length * PX - 6} y={BOARD.y + 16} textAnchor="end" fill="#746566" fontSize="12">
               body: soundboard 0.5 × 0.4 m on enclosed air (what is heard)
             </text>
-            <rect x={left} y={y - 7} width={length} height="14" rx="2" fill="#8f9aa6" stroke="#c9d2dc" style={{ cursor: 'pointer' }} onPointerDown={strike}>
+            <rect x={left} y={y - 7} width={length} height="14" rx="2" fill="#a9b0b8" stroke="#6e7780" style={{ cursor: 'pointer' }} onPointerDown={strike}>
               <title>Metal bar: click to strike</title>
             </rect>
-            <rect key={`b${flash.bar}`} x={left - 3} y={y - 10} width={length + 6} height="20" rx="4" fill="none" stroke="#bfe3ff" strokeWidth="6" pointerEvents="none" opacity={glow(status?.barEnergy)} />
-            <line x1={nut} x2={end} y1={y} y2={y} stroke="#d9c79a" strokeWidth="3" style={{ cursor: 'pointer' }} onPointerDown={pluck}>
+            <rect key={`b${flash.bar}`} x={left - 3} y={y - 10} width={length + 6} height="20" rx="4" fill="none" stroke="#790b13" strokeWidth="6" pointerEvents="none" opacity={glow(status?.barEnergy)} />
+            <line x1={nut} x2={end} y1={y} y2={y} stroke="#8a6a3a" strokeWidth="3" style={{ cursor: 'pointer' }} onPointerDown={pluck}>
               <title>String: click to pluck</title>
             </line>
-            <line key={`s${flash.string}`} x1={nut} x2={end} y1={y} y2={y} stroke="#ffe9a8" strokeWidth="7" pointerEvents="none" opacity={glow(status?.stringEnergy)} />
+            <line key={`s${flash.string}`} x1={nut} x2={end} y1={y} y2={y} stroke="#c58b2a" strokeWidth="7" pointerEvents="none" opacity={glow(status?.stringEnergy)} />
             {/* Mechanical connections: two pads (bar to board) and the tie (string end to bar). */}
-            <circle cx={barX(port(bar, 'pad-a'))} cy={y} r="5" fill="#2f8f58" />
-            <circle cx={barX(port(bar, 'pad-b'))} cy={y} r="5" fill="#2f8f58" />
-            <circle cx={end} cy={y} r="4" fill="#d9c79a" stroke="#111418" />
-            <text x={end} y={y - 16} textAnchor="middle" fill="#d9c79a" fontSize="12">{`tie at ${port(bar, 'tie').toFixed(3)}`}</text>
-            <text x={barX(0.5)} y={y + 30} textAnchor="middle" fill="#6fcf97" fontSize="12">
+            <circle cx={barX(port(bar, 'pad-a'))} cy={y} r="5" fill="#32745b" />
+            <circle cx={barX(port(bar, 'pad-b'))} cy={y} r="5" fill="#32745b" />
+            <circle cx={end} cy={y} r="4" fill="#8a6a3a" stroke="#fffaf3" />
+            <text x={end} y={y - 16} textAnchor="middle" fill="#6b4a1e" fontSize="12">{`tie at ${port(bar, 'tie').toFixed(3)}`}</text>
+            <text x={barX(0.5)} y={y + 30} textAnchor="middle" fill="#32745b" fontSize="12">
               pads (green) at {port(bar, 'pad-a').toFixed(3)} and {port(bar, 'pad-b').toFixed(3)}
             </text>
             {/* Places to play. */}
-            <circle cx={pluckX} cy={y} r="8" fill="none" stroke="#6cb2ff" strokeWidth="1.5" />
-            <text x={pluckX} y={y + 26} textAnchor="middle" fill="#9aa3ad" fontSize="12">
+            <circle cx={pluckX} cy={y} r="8" fill="none" stroke="#790b13" strokeWidth="1.5" />
+            <text x={pluckX} y={y + 26} textAnchor="middle" fill="#746566" fontSize="12">
               pluck
             </text>
-            <path d={`M ${barX(port(bar, 'middle')) - 5} ${y - 20} l 5 9 l 5 -9 z`} fill="#6cb2ff" />
-            <circle cx={barX(port(bar, 'touch'))} cy={y} r="9" fill={fingers.damp ? '#d99a3d' : 'none'} stroke="#d99a3d" strokeDasharray={fingers.damp ? undefined : '3 3'} />
-            <circle cx={pluckX} cy={y} r="5" fill={fingers.mute ? '#d99a3d' : 'none'} />
-            <text x={nut} y={y + 26} fill="#9aa3ad" fontSize="12">
+            <path d={`M ${barX(port(bar, 'middle')) - 5} ${y - 20} l 5 9 l 5 -9 z`} fill="#790b13" />
+            <circle cx={barX(port(bar, 'touch'))} cy={y} r="9" fill={fingers.damp ? '#a8650f' : 'none'} stroke="#a8650f" strokeDasharray={fingers.damp ? undefined : '3 3'} />
+            <circle cx={pluckX} cy={y} r="5" fill={fingers.mute ? '#a8650f' : 'none'} />
+            <text x={nut} y={y + 26} fill="#746566" fontSize="12">
               nut
             </text>
-            <text x="20" y="318" fill="#9aa3ad" fontSize="12">
+            <text x="20" y="318" fill="#746566" fontSize="12">
               Seen from above, to scale. Blue ring: pluck. Blue arrow: strike. Orange: finger places (filled when down). The glow follows the energy the string and the bar hold.
             </text>
           </svg>

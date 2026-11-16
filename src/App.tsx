@@ -5,6 +5,7 @@ import { Keyboard } from './components/controls/Keyboard'
 import { ParamSlider } from './components/controls/ParamSlider'
 import { Visualizer } from './components/visualization/Visualizer'
 import { defaultValues, IDS, INSTRUMENTS, withValue } from './instrumentUI'
+import { Shell } from './ui/Shell'
 import type { EngineStatus, InstrumentId } from './types'
 const STATUS_TEXT: Record<EngineStatus['state'], string> = {
   stopped: 'Audio is off. Press Start Audio.',
@@ -64,9 +65,10 @@ export default function App() {
   const frequencyOf = (n: number) => ui.frequency(values, n)
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl space-y-6 p-6 font-mono text-sm text-neutral-200">
+    <Shell current="instruments">
+    <main className="mx-auto min-h-screen max-w-5xl space-y-6 p-6 text-sm text-neutral-200">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-lg font-semibold">SonicMatter</h1>
+        <h1 className="mr-auto text-xl font-semibold tracking-tight">Instruments</h1>
         <label className="flex items-center gap-2 text-neutral-400">
           Instrument
           <select
@@ -84,7 +86,7 @@ export default function App() {
         {state === 'stopped' || state === 'error' ? (
           <button
             type="button"
-            className={`${button} border-emerald-500 text-emerald-300`}
+            className="m-btn m-btn-primary"
             onClick={() => void engine.start(instrument)}
           >
             Start Audio
@@ -141,5 +143,6 @@ export default function App() {
 
       <Visualizer analyser={engine.analyser} fundamental={frequencyOf(note ?? 0)} />
     </main>
+    </Shell>
   )
 }

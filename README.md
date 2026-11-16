@@ -1,4 +1,6 @@
-# SonicMatter
+# Melofably
+
+*Invent instruments. Shape sound.* A creative workspace for designing, building, and playing your own physical musical instruments. (The project was called SonicMatter while it was being researched; the research documents under `docs/` and some internal identifiers keep that name.)
 
 Browser-based physical-modeling synthesizer and virtual instrument studio.
 Sound will be computed by Faust DSP compiled to WebAssembly and run in an

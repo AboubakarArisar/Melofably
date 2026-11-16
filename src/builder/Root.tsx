@@ -4,6 +4,7 @@ import type { Graph } from '../experimental/graph2/model.ts'
 import Builder from './Builder.tsx'
 import { HYBRID_STORAGE_KEY, hybridTemplate, MODE_STORAGE_KEY, openText } from './hybrid.ts'
 import HybridBuilder from './HybridBuilder.tsx'
+import { Shell } from '../ui/Shell.tsx'
 
 const read = (key: string) => {
   try {
@@ -38,5 +39,5 @@ export default function Root() {
     remember(next.kind)
     setMode(next)
   }
-  return mode.kind === 'hybrid' ? <HybridBuilder key={mode.notice} initial={mode.graph} initialNotice={mode.notice} onClassic={() => go({ kind: 'classic' })} /> : <Builder onOpenHybrid={(choice) => go(hybrid(choice))} />
+  return <Shell current="builder">{mode.kind === 'hybrid' ? <HybridBuilder key={mode.notice} initial={mode.graph} initialNotice={mode.notice} onClassic={() => go({ kind: 'classic' })} /> : <Builder onOpenHybrid={(choice) => go(hybrid(choice))} />}</Shell>
 }

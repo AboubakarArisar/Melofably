@@ -1,7 +1,10 @@
 // EXPERIMENTAL (Phase 3B). The instrument builder page: palette, canvas,
 // inspector, audio controls and status. All physics is in the WebAssembly
 // engine; this file only edits the graph and tells the session about it.
+import { Eraser, Play, Power, Redo2, Square, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
+import { ConfirmDialog } from '../ui/ConfirmDialog.tsx'
 import { BrowserBackend, type Meter } from './audio.ts'
 import { Canvas, type Selection } from './Canvas.tsx'
 import { EXAMPLES, RADIATION_EXAMPLES, STRING_EXAMPLES } from './examples.ts'
@@ -67,6 +70,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
   const [lastMeter, setMeter] = useState<Meter | null>(null)
   const [volume, setVolume] = useState(0.7)
   const [busy, setBusy] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   const backend = useMemo(() => new BrowserBackend(), [])
   const session = useMemo(() => new Session(backend, setState), [backend])
@@ -132,6 +136,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
       setNotice('Audio is on. Press Play instrument, or select a bar and strike it.')
     } catch (error) {
       setFailure(`Audio could not start: ${error instanceof Error ? error.message : String(error)}`)
+      toast.error('Audio could not start. The reason is shown on the page.')
     } finally {
       setBusy(false)
     }
@@ -188,7 +193,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
 
   const add = (type: ComponentType) => {
     const reason = cannotAdd(graph, type)
-    if (reason) return setNotice(reason)
+    if (reason) return void (setNotice(reason), toast.error(reason))
     const spot = freeSpot(graph, TYPES[type].kind === 'exciter')
     const added = addComponent(graph, type, spot.x, spot.y)
     edit(added.graph)
@@ -196,7 +201,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
   }
   const join = (from: string, to: string) => {
     const reason = cannotConnect(graph, from, to)
-    if (reason) return setNotice(reason)
+    if (reason) return void (setNotice(reason), toast.error(reason))
     const joined = connect(graph, from, to)
     edit(joined.graph)
     setSelection({ kind: 'connection', id: joined.id })
@@ -260,7 +265,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
   return (
     <div className="mx-auto max-w-[1500px] p-4 text-neutral-100">
       <header className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">Instrument builder</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Instrument builder</h1>
         <span className="rounded bg-amber-300 px-2 py-0.5 text-xs font-semibold text-neutral-950">Experimental</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <label htmlFor="example" className="sr-only">
@@ -304,13 +309,16 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
               </optgroup>
             )}
           </select>
-          <button className={button} onClick={() => load(emptyGraph())} disabled={graph.components.length === 0}>
+          <button className={button} onClick={() => setClearing(true)} disabled={graph.components.length === 0}>
+            <Eraser aria-hidden="true" />
             Clear
           </button>
           <button className={button} onClick={() => dispatch({ type: 'undo' })} disabled={history.past.length === 0} title="Ctrl+Z">
+            <Undo2 aria-hidden="true" />
             Undo
           </button>
           <button className={button} onClick={() => dispatch({ type: 'redo' })} disabled={history.future.length === 0} title="Ctrl+Y">
+            <Redo2 aria-hidden="true" />
             Redo
           </button>
         </div>
@@ -319,14 +327,17 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
       <section aria-label="Audio" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
         {state.running ? (
           <button className={button} onClick={stop} disabled={busy}>
+            <Square aria-hidden="true" />
             Stop audio
           </button>
         ) : (
           <button className={primary} onClick={start} disabled={busy}>
-            Start audio
+            <Power aria-hidden="true" />
+            {busy ? 'Starting…' : 'Start audio'}
           </button>
         )}
         <button className={primary} onClick={play} disabled={!state.running || state.issues.length > 0} title="Space">
+          <Play aria-hidden="true" />
           Play instrument
         </button>
         {hasString && (
@@ -473,6 +484,19 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
           onStrike={strike}
         />
       </div>
+      <ConfirmDialog
+        open={clearing}
+        title="Clear the workspace?"
+        body="Every component and connection will be removed from the canvas. You can bring them back with Undo."
+        confirmLabel="Clear workspace"
+        danger
+        onCancel={() => setClearing(false)}
+        onConfirm={() => {
+          setClearing(false)
+          load(emptyGraph())
+          toast.success('Workspace cleared. Undo brings it back.')
+        }}
+      />
       <footer className="mt-4 text-xs text-neutral-500">
         Every bar, mallet, spring and damper is simulated as a physical object by the experimental WebAssembly engine; connected bars move each other. Your instrument is saved in this browser as you work.
       </footer>

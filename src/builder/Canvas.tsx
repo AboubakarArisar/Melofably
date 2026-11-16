@@ -36,12 +36,12 @@ type Drag =
   | { kind: 'pull'; id: string; position: number; from: number; across: number; force: number | null; pulled: boolean }
   | null
 
-const FILL: Record<Component['type'], string> = { metalBar: '#8b9bb0', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#7fb2d9', steelString: '#e6e9ee', dampedBox: '#b98d58', listener: '#9fd6c1' }
+const FILL: Record<Component['type'], string> = { metalBar: '#a3acb6', woodBar: '#a87545', mallet: '#d8c59a', impulse: '#cdbcae', steelString: '#8a6a3a', dampedBox: '#b98d58', listener: '#9dbfae' }
 /** Excitation is drawn in amber, physical links between bars in teal: two different things, two different colours. */
-const STRIKE_COLOR = '#f0b44c'
-const LINK_COLOR = '#6fd6c9'
-const SELECTED = '#6cb2ff'
-const PROBLEM = '#ff6b6b'
+const STRIKE_COLOR = '#a8650f'
+const LINK_COLOR = '#32745b'
+const SELECTED = '#790b13'
+const PROBLEM = '#b42332'
 const SHORT: Record<ConnectionType, string> = { strike: 'strikes', spring: 'spring', damper: 'damper', springDamper: 'spring + damper', bridge: 'bridge' }
 
 /** What dragging a connection from `from` onto `to` would do, in words. */
@@ -145,7 +145,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
         >
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M40 0H0V40" fill="none" stroke="#1f242b" strokeWidth="1" />
+              <path d="M40 0H0V40" fill="none" stroke="#efe2d3" strokeWidth="1" />
             </pattern>
             {[STRIKE_COLOR, SELECTED, PROBLEM].map((color) => (
               <marker key={color} id={`arrow-${color.slice(1)}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
@@ -161,7 +161,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {graph.components.length === 0 && (
-            <text x={CANVAS.width / 2} y={CANVAS.height / 2 - 26} textAnchor="middle" fill="#8a94a0" fontSize="17">
+            <text x={CANVAS.width / 2} y={CANVAS.height / 2 - 26} textAnchor="middle" fill="#746566" fontSize="17">
               <tspan x={CANVAS.width / 2}>Nothing here yet.</tspan>
               <tspan x={CANVAS.width / 2} dy="28">Add a bar from the Add list, then a mallet, and drag from the mallet's dot to the bar.</tspan>
               <tspan x={CANVAS.width / 2} dy="28">Or load an example from the top of the page.</tspan>
@@ -198,7 +198,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 {link.type === 'damper' && <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={on ? 7 : 6} strokeDasharray="2 6" />}
                 {link.type === 'springDamper' && <line x1={a.x + 10} y1={a.y} x2={b.x + 10} y2={b.y} stroke={color} strokeWidth="5" strokeDasharray="2 6" />}
                 {/* What kind of connection it is, in a word. */}
-                <rect x={mid.x - width / 2} y={mid.y - 10} width={width} height="20" rx="10" fill="#111418" stroke={color} strokeWidth="1.5" />
+                <rect x={mid.x - width / 2} y={mid.y - 10} width={width} height="20" rx="10" fill="#fffaf3" stroke={color} strokeWidth="1.5" />
                 <text x={mid.x} y={mid.y + 4} textAnchor="middle" fontSize="12" fill={color}>
                   {label}
                 </text>
@@ -211,7 +211,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
             const dot = handle(c)
             const offered = linkingFrom !== null && linkingFrom !== c.id && cannotConnect(graph, linkingFrom, c.id) === null
             const dim = linkingFrom !== null && linkingFrom !== c.id && !offered
-            const stroke = flagged.has(c.id) ? PROBLEM : on ? SELECTED : offered ? '#5fd38d' : '#0b0d10'
+            const stroke = flagged.has(c.id) ? PROBLEM : on ? SELECTED : offered ? '#32745b' : '#6b5a5b'
             const strokeWidth = on || offered || flagged.has(c.id) ? 3 : 1.5
             const size = rectSize(c)
             const hit = size && !isBody(c) ? strikePoint(c) : null
@@ -224,7 +224,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                 aria-pressed={on}
                 aria-label={isString(c) ? `${c.name}. Enter selects, Space plucks, arrow keys move, Delete removes. With a pointer: click it to pluck there, or drag across it and let go.` : `${c.name}. Enter selects, Space strikes, arrow keys move, Delete removes.`}
                 opacity={dim ? 0.35 : 1}
-                className="cursor-grab outline-none focus-visible:[&>.body]:stroke-[#6cb2ff]"
+                className="cursor-grab outline-none focus-visible:[&>.body]:stroke-[#790b13]"
                 onKeyDown={(e) => keys(e, c)}
                 onPointerDown={(e) => press(e, c)}
               >
@@ -244,7 +244,7 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                         {ringing > 0.02 && !held && <path data-ringing={ringing.toFixed(2)} d={`M${left + STRING_GRIP} ${c.y}Q${c.x + STRING_GRIP / 2} ${c.y - 2 * haze} ${right} ${c.y}Q${c.x + STRING_GRIP / 2} ${c.y + 2 * haze} ${left + STRING_GRIP} ${c.y}z`} fill={FILL[c.type]} opacity="0.28" pointerEvents="none" style={{ transition: 'd 0.25s linear' }} />}
                         <polyline points={held ? `${left},${c.y} ${hx},${c.y + held.across} ${right},${c.y}` : `${left},${c.y} ${right},${c.y}`} fill="none" stroke={FILL[c.type]} strokeWidth="3" strokeLinejoin="round" pointerEvents="none" />
                         {/* The fixed end: the part it is moved by. */}
-                        <rect x={left - 3} y={c.y - 9} width={STRING_GRIP} height="18" rx="3" fill="#59616b" stroke="#0b0d10" strokeWidth="1.5" className="cursor-grab" />
+                        <rect x={left - 3} y={c.y - 9} width={STRING_GRIP} height="18" rx="3" fill="#8a7a7b" stroke="#6b5a5b" strokeWidth="1.5" className="cursor-grab" />
                         {hit && !held && <path d={`M${hit.x - 7} ${hit.y - 12}h14l-7 10z`} fill={STRIKE_COLOR} pointerEvents="none" />}
                         {held && (
                           <g pointerEvents="none">
@@ -261,19 +261,19 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                   <>
                     <rect className="body" x={c.x - size.w / 2} y={c.y - size.h / 2} width={size.w} height={size.h} rx="5" fill={FILL[c.type]} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={offered ? '6 4' : undefined} />
                     {/* The body's sound hole, with its screen. */}
-                    {isBody(c) && <circle cx={c.x + 40} cy={c.y} r="34" fill="#3a2c1c" stroke="#0b0d10" strokeWidth="1.5" strokeDasharray="3 3" pointerEvents="none" />}
+                    {isBody(c) && <circle cx={c.x + 40} cy={c.y} r="34" fill="#6b4a2e" stroke="#6b5a5b" strokeWidth="1.5" strokeDasharray="3 3" pointerEvents="none" />}
                     {/* Where it is struck or plucked. */}
                     {hit && <path d={`M${hit.x - 7} ${hit.y - 10}h14l-7 10z`} fill={STRIKE_COLOR} />}
                   </>
                 ) : (
                   <>
                     <circle className="body" cx={c.x} cy={c.y} r={EXCITER_RADIUS} fill={FILL[c.type]} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={offered ? '6 4' : undefined} />
-                    <text x={c.x} y={c.y + 5} textAnchor="middle" fontSize="13" fontWeight="600" fill="#111418" pointerEvents="none">
+                    <text x={c.x} y={c.y + 5} textAnchor="middle" fontSize="13" fontWeight="600" fill="#281b1c" pointerEvents="none">
                       {c.type === 'mallet' ? 'mallet' : isListener(c) ? 'ear' : 'pulse'}
                     </text>
                   </>
                 )}
-                <text x={c.x} y={size ? c.y - size.h / 2 - 16 : c.y - EXCITER_RADIUS - 8} textAnchor="middle" fontSize="13" fill="#c9d1d9" pointerEvents="none">
+                <text x={c.x} y={size ? c.y - size.h / 2 - 16 : c.y - EXCITER_RADIUS - 8} textAnchor="middle" fontSize="13" fill="#281b1c" pointerEvents="none">
                   {c.name}
                 </text>
                 {/* The dot connections are dragged from, with a generous invisible area around it. A listener has none: nothing is tied to it. */}
@@ -282,11 +282,11 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
                     <circle data-handle={c.id} cx={dot.x} cy={dot.y} r={HANDLE_REACH} fill="transparent" className="cursor-crosshair">
                       <title>Drag from here to another component to connect them</title>
                     </circle>
-                    <circle cx={dot.x} cy={dot.y} r="9" fill="#111418" stroke={size ? LINK_COLOR : STRIKE_COLOR} strokeWidth="2.5" pointerEvents="none" />
+                    <circle cx={dot.x} cy={dot.y} r="9" fill="#fffaf3" stroke={size ? LINK_COLOR : STRIKE_COLOR} strokeWidth="2.5" pointerEvents="none" />
                     <circle cx={dot.x} cy={dot.y} r="3" fill={size ? LINK_COLOR : STRIKE_COLOR} pointerEvents="none" />
                   </>
                 )}
-                {struck.ids.includes(c.id) && hit && <circle key={struck.n} className="struck" cx={hit.x} cy={hit.y} r="16" fill="none" stroke="#fff" strokeWidth="3" pointerEvents="none" />}
+                {struck.ids.includes(c.id) && hit && <circle key={struck.n} className="struck" cx={hit.x} cy={hit.y} r="16" fill="none" stroke="#790b13" strokeWidth="3" pointerEvents="none" />}
               </g>
             )
           })}
@@ -296,14 +296,14 @@ export function Canvas({ graph, selection, flagged, struck, onSelect, onMove, on
               const from = graph.components.find((c) => c.id === drag.from)
               if (!from || !hover) return null
               const a = handle(from)
-              const color = hover.ok ? '#5fd38d' : '#c9d1d9'
+              const color = hover.ok ? '#32745b' : '#746566'
               const width = Math.min(560, 7.2 * hover.text.length + 20)
               const x = Math.min(CANVAS.width - width / 2 - 6, Math.max(width / 2 + 6, drag.at.x))
               const y = Math.max(24, drag.at.y - 26)
               return (
                 <g pointerEvents="none">
                   <line x1={a.x} y1={a.y} x2={drag.at.x} y2={drag.at.y} stroke={color} strokeWidth="2.5" strokeDasharray="5 4" />
-                  <rect x={x - width / 2} y={y - 14} width={width} height="22" rx="6" fill="#0b0d10" stroke={color} />
+                  <rect x={x - width / 2} y={y - 14} width={width} height="22" rx="6" fill="#fffaf3" stroke={color} />
                   <text x={x} y={y + 2} textAnchor="middle" fontSize="12.5" fill={color}>
                     {hover.text}
                   </text>

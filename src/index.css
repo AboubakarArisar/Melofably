@@ -1,9 +1,39 @@
 @import 'tailwindcss';
+@import './ui/controls.css';
 
-:root {
-  color-scheme: dark;
-}
+/* The Melofably palette, given to the utility classes the pages already use: the neutral scale runs from
+   warm ivory surfaces (950, 900, 800) to burgundy-black text (100), and the accent scale is the brand's
+   burgundy. Changing these changes every page at once. */
+@theme {
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-body {
-  background-color: var(--color-neutral-950);
+  --color-neutral-950: #fff0dc;
+  --color-neutral-900: #fffaf3;
+  --color-neutral-800: #f3e6d7;
+  --color-neutral-700: #e6d9ce;
+  --color-neutral-600: #d6c5b6;
+  --color-neutral-500: #8e8081;
+  --color-neutral-400: #746566;
+  --color-neutral-300: #4d3f40;
+  --color-neutral-200: #33262a;
+  --color-neutral-100: #281b1c;
+
+  --color-sky-300: #9a2a33;
+  --color-sky-400: #65080f;
+  --color-sky-500: #790b13;
+
+  --color-amber-200: #7a4e0e;
+  --color-amber-300: #8a5a12;
+  --color-amber-900: #f6e3c8;
+
+  --color-red-200: #8e1b27;
+  --color-red-300: #8e1b27;
+  --color-red-400: #b42332;
+  --color-red-800: #e3b4b4;
+  --color-red-950: #fbe7e4;
+
+  --color-emerald-300: #2a6650;
+  --color-emerald-400: #32745b;
+  --color-emerald-500: #32745b;
 }

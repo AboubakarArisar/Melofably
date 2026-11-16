@@ -53,10 +53,10 @@ export function Keyboard({ disabled, active, noteName, frequencyOf, onPlay }: Pr
             : undefined
         }
         className={
-          'flex items-end justify-center pb-1 text-xs select-none disabled:opacity-40 ' +
+          'm-key flex items-end justify-center pb-1 text-xs select-none disabled:opacity-40 ' +
           (black
-            ? `absolute top-0 z-10 h-3/5 w-[4.5%] -translate-x-1/2 rounded-b border border-neutral-950 text-neutral-400 ${on ? 'bg-emerald-600' : 'bg-neutral-800'}`
-            : `h-full flex-1 rounded-b border border-neutral-950 text-neutral-600 ${on ? 'bg-emerald-300' : 'bg-neutral-200'}`)
+            ? `absolute top-0 z-10 h-3/5 w-[4.5%] -translate-x-1/2 rounded-b border border-neutral-100 text-neutral-950 ${on ? 'bg-sky-500' : 'bg-neutral-100'}`
+            : `h-full flex-1 rounded-b border border-neutral-600 text-neutral-400 ${on ? 'bg-amber-900' : 'bg-neutral-900'}`)
         }
       >
         {CODES[fret].replace(/Key|Digit/, '')}

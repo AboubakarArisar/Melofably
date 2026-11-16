@@ -1,0 +1,326 @@
+/* Melofably design system: tokens and the controls every page shares
+   (buttons, sliders, selects, text fields, dialogs). Plain CSS, so that the
+   React pages (through index.css) and the standalone Hybrid Lab page use the
+   same rules. Nothing here touches audio. */
+@import '@fontsource-variable/inter';
+
+:root {
+  color-scheme: light;
+  --m-bg: #fff0dc;
+  --m-surface: #fffaf3;
+  --m-muted: #f5e8da;
+  --m-control: #fffdf9;
+  --m-border: #e6d9ce;
+  --m-border-strong: #d6c5b6;
+  --m-brand: #790b13;
+  --m-brand-hover: #65080f;
+  --m-brand-pressed: #51070d;
+  --m-brand-tint: #f6e1dd;
+  --m-text: #281b1c;
+  --m-text-2: #746566;
+  --m-error: #b42332;
+  --m-success: #32745b;
+  --m-warning: #8a5a12;
+  --m-radius: 8px;
+  --m-control-h: 40px;
+  --m-ease: 150ms ease;
+  --m-shadow: 0 1px 2px rgb(40 27 28 / 6%), 0 4px 14px rgb(40 27 28 / 6%);
+  --m-font: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  font-family: var(--m-font);
+  font-feature-settings: 'cv11', 'ss01';
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  background-color: var(--m-bg);
+  color: var(--m-text);
+}
+::selection {
+  background: var(--m-brand);
+  color: var(--m-bg);
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+button {
+  min-height: var(--m-control-h);
+  border-radius: var(--m-radius);
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), box-shadow var(--m-ease), transform 80ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+button:disabled {
+  cursor: not-allowed;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--m-brand);
+  outline-offset: 2px;
+}
+button svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+/* Variants for markup that is not styled by utility classes. */
+.m-btn {
+  padding: 0 0.95rem;
+  border: 1px solid var(--m-border-strong);
+  background: var(--m-surface);
+  color: var(--m-text);
+  font-size: 0.875rem;
+}
+.m-btn:hover:not(:disabled) {
+  background: var(--m-muted);
+}
+.m-btn:disabled {
+  opacity: 0.45;
+}
+.m-btn-primary {
+  border-color: var(--m-brand);
+  background: var(--m-brand);
+  color: var(--m-bg);
+}
+.m-btn-primary:hover:not(:disabled) {
+  background: var(--m-brand-hover);
+  border-color: var(--m-brand-hover);
+}
+.m-btn-primary:active:not(:disabled) {
+  background: var(--m-brand-pressed);
+}
+.m-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.m-btn-danger {
+  border-color: var(--m-error);
+  background: var(--m-error);
+  color: #fff;
+}
+.m-btn-danger:hover:not(:disabled) {
+  background: #9a1d2a;
+}
+
+/* ---- Text fields and selects -------------------------------------------- */
+select,
+input[type='text'],
+input[type='number'] {
+  min-height: var(--m-control-h);
+  border-radius: var(--m-radius);
+  border: 1px solid var(--m-border-strong);
+  background-color: var(--m-control);
+  color: var(--m-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0 0.75rem;
+  transition: border-color var(--m-ease), box-shadow var(--m-ease);
+}
+select:hover:not(:disabled),
+input[type='text']:hover:not(:disabled),
+input[type='number']:hover:not(:disabled) {
+  border-color: #b9a595;
+}
+select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 2.25rem;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23746566' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+}
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+option,
+optgroup {
+  background: var(--m-surface);
+  color: var(--m-text);
+}
+
+/* ---- Sliders ------------------------------------------------------------- */
+/* A thin track, filled in the brand colour up to the thumb, with a round thumb. The fill is drawn by the
+   thumb itself (a border image that reaches to both ends of the track), so it needs no script and always
+   shows the real value, however the value was set. */
+input[type='range'] {
+  --track: 4px;
+  --thumb: 18px;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 999px;
+  touch-action: pan-y;
+  accent-color: var(--m-brand);
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: var(--thumb);
+  background: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--m-surface);
+  border: 2px solid var(--m-brand);
+  box-shadow: 0 1px 2px rgb(40 27 28 / 25%);
+  border-image: linear-gradient(90deg, var(--m-brand) 50%, var(--m-border-strong) 0) 0 1 / calc(50% - var(--track) / 2) 100vw / 0 100vw;
+  clip-path: polygon(-100vw 0, 0 0, 0 0, 100% 0, 100% 0, 100vw 0, 100vw 100%, 100% 100%, 100% 100%, 0 100%, 0 100%, -100vw 100%);
+  transition: background-color var(--m-ease);
+}
+input[type='range']::-moz-range-track {
+  height: var(--track);
+  border-radius: 999px;
+  background: var(--m-border-strong);
+}
+input[type='range']::-moz-range-progress {
+  height: var(--track);
+  border-radius: 999px;
+  background: var(--m-brand);
+}
+input[type='range']::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--m-surface);
+  border: 2px solid var(--m-brand);
+  box-shadow: 0 1px 2px rgb(40 27 28 / 25%);
+}
+input[type='range']:hover::-webkit-slider-thumb {
+  background: var(--m-brand-tint);
+}
+input[type='range']:active::-webkit-slider-thumb {
+  background: var(--m-brand);
+}
+input[type='range']:focus-visible {
+  outline: 2px solid var(--m-brand);
+  outline-offset: 3px;
+}
+input[type='range']:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- Dialogs --------------------------------------------------------------- */
+dialog.m-dialog {
+  border: 1px solid var(--m-border);
+  border-radius: 12px;
+  background: var(--m-surface);
+  color: var(--m-text);
+  padding: 1.5rem;
+  width: min(28rem, calc(100vw - 2rem));
+  box-shadow: 0 20px 50px rgb(40 27 28 / 25%);
+  margin: auto;
+}
+dialog.m-dialog::backdrop {
+  background: rgb(40 27 28 / 45%);
+}
+dialog.m-dialog[open] {
+  animation: m-rise 160ms ease;
+}
+@keyframes m-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---- Brand bar --------------------------------------------------------------- */
+.m-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 1.25rem;
+  background: var(--m-surface);
+  border-bottom: 1px solid var(--m-border);
+}
+.m-wordmark {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--m-brand);
+  text-decoration: none;
+}
+.m-tagline {
+  color: var(--m-text-2);
+  font-size: 0.8125rem;
+}
+.m-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.m-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 0.8rem;
+  border-radius: var(--m-radius);
+  color: var(--m-text-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--m-ease), color var(--m-ease);
+}
+.m-nav a:hover {
+  background: var(--m-muted);
+  color: var(--m-text);
+}
+.m-nav a[aria-current='page'] {
+  background: var(--m-brand-tint);
+  color: var(--m-brand);
+}
+@media (max-width: 640px) {
+  .m-tagline {
+    display: none;
+  }
+  .m-nav {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Piano keys are buttons of their own shape. */
+button.m-key {
+  border-radius: 0 0 6px 6px;
+  min-height: 0;
+}
+
