@@ -1,46 +1,62 @@
-/* Melofably design system: tokens and the controls every page shares
-   (buttons, sliders, selects, text fields, dialogs). Plain CSS, so that the
-   React pages (through index.css) and the standalone Hybrid Lab page use the
-   same rules. Nothing here touches audio. */
-@import '@fontsource-variable/inter';
+/* Melofably design system: sage and ivory. The page is off-white, cards are
+   white, Pale Sage Ivory (#E5E8CE) marks the hero, selected things and
+   highlights, Muted Forest Sage (#789575) is the accent of sliders, icons and
+   illustrations, and a dark green carries the primary buttons and anything
+   that must be read at a glance. Plain CSS shared by the React pages (through
+   index.css) and the standalone Hybrid Lab page. Nothing here touches audio. */
+@import '@fontsource-variable/manrope';
 
 :root {
   color-scheme: light;
-  --m-bg: #fff0dc;
-  --m-surface: #fffaf3;
-  --m-muted: #f5e8da;
-  --m-control: #fffdf9;
-  --m-border: #e6d9ce;
-  --m-border-strong: #d6c5b6;
-  --m-brand: #790b13;
-  --m-brand-hover: #65080f;
-  --m-brand-pressed: #51070d;
-  --m-brand-tint: #f6e1dd;
-  --m-text: #281b1c;
-  --m-text-2: #746566;
-  --m-error: #b42332;
-  --m-success: #32745b;
-  --m-warning: #8a5a12;
-  --m-radius: 8px;
-  --m-control-h: 40px;
-  --m-ease: 150ms ease;
-  --m-shadow: 0 1px 2px rgb(40 27 28 / 6%), 0 4px 14px rgb(40 27 28 / 6%);
-  --m-font: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-sage-ivory: #e5e8ce;
+  --m-sage: #789575;
+  --m-bg: #f8f9f3;
+  --m-surface: #ffffff;
+  --m-raised: #eef1e4;
+  --m-border: #d5ddce;
+  --m-border-strong: #b7c3b1;
+  --m-text: #26382c;
+  --m-text-2: #526354;
+  --m-accent: #365c43;
+  --m-accent-hover: #294a35;
+  --m-on-accent: #ffffff;
+  --m-track: #d5ddce;
+  --m-fill: #789575;
+  --m-field: #ffffff;
+  --m-field-text: #26382c;
+  --m-error: #a8322b;
+  --m-success: #365c43;
+  --m-warning: #7a5a12;
+  /* Kept for pages that name them. */
+  --m-brand: var(--m-accent);
+  --m-brand-hover: var(--m-accent-hover);
+  --m-muted: var(--m-raised);
+  --m-control: #ffffff;
+  --m-font: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-control-h: 42px;
+  --m-radius: 10px;
+  --m-ease: 140ms ease;
 }
 
 html {
-  font-family: var(--m-font);
-  font-feature-settings: 'cv11', 'ss01';
-  font-variant-numeric: tabular-nums;
-  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 body {
+  margin: 0;
+  font-family: var(--m-font);
   background-color: var(--m-bg);
   color: var(--m-text);
+  -webkit-font-smoothing: antialiased;
 }
 ::selection {
-  background: var(--m-brand);
-  color: var(--m-bg);
+  background: var(--m-sage-ivory);
+  color: var(--m-text);
+}
+/* A white surface inside a tinted one (kept under its earlier name). */
+.m-ivory {
+  background-color: var(--m-surface);
+  color: var(--m-text);
 }
 
 /* ---- Buttons ----------------------------------------------------------- */
@@ -48,19 +64,18 @@ button {
   min-height: var(--m-control-h);
   border-radius: var(--m-radius);
   font-family: inherit;
-  font-weight: 500;
-  letter-spacing: 0;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), box-shadow var(--m-ease), transform 80ms ease;
+  transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), box-shadow var(--m-ease), transform 90ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   white-space: nowrap;
   touch-action: manipulation;
 }
 button:active:not(:disabled) {
-  transform: translateY(0.5px);
+  transform: translateY(1px);
 }
 button:disabled {
   cursor: not-allowed;
@@ -70,39 +85,53 @@ select:focus-visible,
 input:focus-visible,
 summary:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--m-brand);
+  outline: 2px solid var(--m-accent);
   outline-offset: 2px;
 }
 button svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.05rem;
+  height: 1.05rem;
   flex: none;
 }
-/* Variants for markup that is not styled by utility classes. */
+/* Secondary: white, dark green text, a quiet border. */
 .m-btn {
-  padding: 0 0.95rem;
+  padding: 0 1.05rem;
   border: 1px solid var(--m-border-strong);
   background: var(--m-surface);
-  color: var(--m-text);
-  font-size: 0.875rem;
+  color: var(--m-accent);
+  font-size: 0.9rem;
+  text-decoration: none;
+  min-height: var(--m-control-h);
+  border-radius: var(--m-radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), transform 90ms ease;
 }
 .m-btn:hover:not(:disabled) {
-  background: var(--m-muted);
+  background: var(--m-raised);
+  border-color: var(--m-sage);
 }
 .m-btn:disabled {
   opacity: 0.45;
 }
 .m-btn-primary {
-  border-color: var(--m-brand);
-  background: var(--m-brand);
-  color: var(--m-bg);
+  border-color: var(--m-accent);
+  background: var(--m-accent);
+  color: var(--m-on-accent);
 }
 .m-btn-primary:hover:not(:disabled) {
-  background: var(--m-brand-hover);
-  border-color: var(--m-brand-hover);
+  background: var(--m-accent-hover);
+  border-color: var(--m-accent-hover);
 }
-.m-btn-primary:active:not(:disabled) {
-  background: var(--m-brand-pressed);
+.m-btn-lg {
+  min-height: 52px;
+  padding: 0 1.5rem;
+  font-size: 1rem;
+  border-radius: 12px;
 }
 .m-btn-ghost {
   border-color: transparent;
@@ -114,68 +143,72 @@ button svg {
   color: #fff;
 }
 .m-btn-danger:hover:not(:disabled) {
-  background: #9a1d2a;
+  background: #8c2620;
+  border-color: #8c2620;
 }
 
-/* ---- Text fields and selects -------------------------------------------- */
+/* ---- Text fields and selects --------------------------------------------- */
 select,
 input[type='text'],
 input[type='number'] {
   min-height: var(--m-control-h);
   border-radius: var(--m-radius);
   border: 1px solid var(--m-border-strong);
-  background-color: var(--m-control);
-  color: var(--m-text);
+  background-color: var(--m-field);
+  color: var(--m-field-text);
   font-family: inherit;
-  font-size: 0.875rem;
-  padding: 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0 0.85rem;
   transition: border-color var(--m-ease), box-shadow var(--m-ease);
 }
 select:hover:not(:disabled),
 input[type='text']:hover:not(:disabled),
 input[type='number']:hover:not(:disabled) {
-  border-color: #b9a595;
+  border-color: var(--m-sage);
+  box-shadow: 0 0 0 3px rgb(120 149 117 / 16%);
 }
 select {
   appearance: none;
   cursor: pointer;
-  padding-right: 2.25rem;
+  padding-right: 2.4rem;
   text-overflow: ellipsis;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23746566' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23365c43' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
+  background-position: right 0.8rem center;
 }
 select:disabled,
 input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-option,
-optgroup {
-  background: var(--m-surface);
-  color: var(--m-text);
-}
 
 /* ---- Sliders ------------------------------------------------------------- */
-/* A thin track, filled in the brand colour up to the thumb, with a round thumb. The fill is drawn by the
-   thumb itself (a border image that reaches to both ends of the track), so it needs no script and always
-   shows the real value, however the value was set. */
+/* A native range input underneath (so keyboard, touch, min, max and step are the browser's own), drawn
+   entirely here: a 6 px track, filled in sage up to the thumb, and a 20 px white thumb with a dark sage
+   rim inside a 40 px touch target. The fill is painted by the thumb itself, reaching to both ends of the
+   track, so it always shows the real value however it was set, with no script. */
 input[type='range'] {
-  --track: 4px;
-  --thumb: 18px;
+  --track: 6px;
+  --thumb: 20px;
   appearance: none;
   -webkit-appearance: none;
-  height: 28px;
+  display: block;
+  width: 100%;
+  height: 40px;
   min-height: 0;
   padding: 0;
   margin: 0;
   background: none;
   border: 0;
   overflow: hidden;
-  cursor: pointer;
+  cursor: grab;
   border-radius: 999px;
   touch-action: pan-y;
-  accent-color: var(--m-brand);
+  accent-color: var(--m-accent);
+}
+input[type='range']:active {
+  cursor: grabbing;
 }
 input[type='range']::-webkit-slider-runnable-track {
   height: var(--thumb);
@@ -188,128 +221,242 @@ input[type='range']::-webkit-slider-thumb {
   width: var(--thumb);
   height: var(--thumb);
   border-radius: 50%;
-  background: var(--m-surface);
-  border: 2px solid var(--m-brand);
-  box-shadow: 0 1px 2px rgb(40 27 28 / 25%);
-  border-image: linear-gradient(90deg, var(--m-brand) 50%, var(--m-border-strong) 0) 0 1 / calc(50% - var(--track) / 2) 100vw / 0 100vw;
+  background: radial-gradient(circle closest-side, #fff calc(100% - 3.5px), var(--m-accent) calc(100% - 2.5px));
+  border: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--m-fill) 50%, var(--m-track) 0) 0 1 / calc(50% - var(--track) / 2) 100vw / 0 100vw;
   clip-path: polygon(-100vw 0, 0 0, 0 0, 100% 0, 100% 0, 100vw 0, 100vw 100%, 100% 100%, 100% 100%, 0 100%, 0 100%, -100vw 100%);
-  transition: background-color var(--m-ease);
+  transition: background var(--m-ease);
+}
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:active::-webkit-slider-thumb {
+  background: radial-gradient(circle closest-side, #fff calc(100% - 5px), var(--m-accent) calc(100% - 4px));
 }
 input[type='range']::-moz-range-track {
   height: var(--track);
   border-radius: 999px;
-  background: var(--m-border-strong);
+  background: var(--m-track);
 }
 input[type='range']::-moz-range-progress {
   height: var(--track);
   border-radius: 999px;
-  background: var(--m-brand);
+  background: var(--m-fill);
 }
 input[type='range']::-moz-range-thumb {
   box-sizing: border-box;
   width: var(--thumb);
   height: var(--thumb);
   border-radius: 50%;
-  background: var(--m-surface);
-  border: 2px solid var(--m-brand);
-  box-shadow: 0 1px 2px rgb(40 27 28 / 25%);
-}
-input[type='range']:hover::-webkit-slider-thumb {
-  background: var(--m-brand-tint);
-}
-input[type='range']:active::-webkit-slider-thumb {
-  background: var(--m-brand);
+  background: #fff;
+  border: 2.5px solid var(--m-accent);
+  box-shadow: 0 1px 3px rgb(38 56 44 / 25%);
 }
 input[type='range']:focus-visible {
-  outline: 2px solid var(--m-brand);
-  outline-offset: 3px;
+  outline: 2px solid var(--m-accent);
+  outline-offset: -6px;
 }
 input[type='range']:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+}
+/* The labelled slider every page uses (src/ui/Slider.tsx). */
+.m-slider {
+  display: block;
+}
+.m-slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.m-slider-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--m-text);
+}
+.m-slider-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--m-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.m-slider-value small {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--m-text-2);
+  margin-left: 0.25rem;
+}
+.m-slider-track {
+  position: relative;
+  margin: -0.15rem 0;
+}
+.m-slider-range {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -0.3rem;
+  font-size: 0.75rem;
+  color: var(--m-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Cards --------------------------------------------------------------- */
+/* Workspace panels and control cards: white, a border, no shadow. */
+.m-panel {
+  background: var(--m-surface);
+  border: 1px solid var(--m-border);
+  border-radius: 16px;
+}
+/* Feature and instrument cards: the same surface, a larger radius, and a restrained lift on hover. */
+.m-card {
+  background: var(--m-surface);
+  border: 1px solid var(--m-border);
+  border-radius: 18px;
+}
+.m-card-hover {
+  transition: border-color var(--m-ease), box-shadow 180ms ease, transform 180ms ease;
+}
+.m-card-hover:hover {
+  border-color: var(--m-sage);
+  box-shadow: 0 10px 24px rgb(38 56 44 / 8%);
+  transform: translateY(-2px);
+}
+/* Metric cards: a small label over a large number. */
+.m-metric {
+  background: var(--m-surface);
+  border: 1px solid var(--m-border);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+}
+.m-metric dt {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--m-text-2);
+}
+.m-metric dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.m-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--m-accent);
+}
+.m-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  border: 1px solid var(--m-border-strong);
+  color: var(--m-text-2);
+  background: var(--m-surface);
+  white-space: nowrap;
+}
+.m-chip-solid {
+  background: var(--m-sage-ivory);
+  color: var(--m-accent);
+  border-color: transparent;
 }
 
 /* ---- Dialogs --------------------------------------------------------------- */
 dialog.m-dialog {
   border: 1px solid var(--m-border);
-  border-radius: 12px;
-  background: var(--m-surface);
-  color: var(--m-text);
-  padding: 1.5rem;
+  border-radius: 18px;
+  padding: 1.6rem;
   width: min(28rem, calc(100vw - 2rem));
-  box-shadow: 0 20px 50px rgb(40 27 28 / 25%);
+  box-shadow: 0 24px 60px rgb(38 56 44 / 22%);
   margin: auto;
 }
 dialog.m-dialog::backdrop {
-  background: rgb(40 27 28 / 45%);
+  background: rgb(38 56 44 / 40%);
 }
 dialog.m-dialog[open] {
-  animation: m-rise 160ms ease;
+  animation: m-rise 180ms ease;
 }
 @keyframes m-rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.98);
   }
 }
 
-/* ---- Brand bar --------------------------------------------------------------- */
+/* ---- Brand bar ----------------------------------------------------------------- */
 .m-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  padding: 0.7rem 1.25rem;
-  background: var(--m-surface);
+  gap: 1.25rem;
+  min-height: 64px;
+  padding: 0.5rem clamp(1rem, 4vw, 2.5rem);
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--m-border);
 }
 .m-wordmark {
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--m-brand);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--m-text);
   text-decoration: none;
-}
-.m-tagline {
-  color: var(--m-text-2);
-  font-size: 0.8125rem;
 }
 .m-nav {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.2rem;
   margin-left: auto;
 }
 .m-nav a {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 0.8rem;
-  border-radius: var(--m-radius);
+  min-height: 38px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
   color: var(--m-text-2);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   transition: background-color var(--m-ease), color var(--m-ease);
 }
 .m-nav a:hover {
-  background: var(--m-muted);
+  background: var(--m-raised);
   color: var(--m-text);
 }
 .m-nav a[aria-current='page'] {
-  background: var(--m-brand-tint);
-  color: var(--m-brand);
+  background: var(--m-sage-ivory);
+  color: var(--m-text);
 }
-@media (max-width: 640px) {
-  .m-tagline {
-    display: none;
+@media (max-width: 720px) {
+  .m-bar {
+    flex-wrap: wrap;
+    gap: 0.3rem 1rem;
+  }
+  .m-bar > .m-btn {
+    margin-left: auto;
+    min-height: 38px;
   }
   .m-nav {
-    margin-left: 0;
-    width: 100%;
+    order: 3;
+    margin-left: -0.6rem;
+    width: calc(100% + 0.6rem);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {
@@ -318,9 +465,86 @@ dialog.m-dialog[open] {
   }
 }
 
-/* Piano keys are buttons of their own shape. */
-button.m-key {
-  border-radius: 0 0 6px 6px;
-  min-height: 0;
+/* ---- The playing keyboard --------------------------------------------------------- */
+.m-keys {
+  position: relative;
+  display: flex;
+  height: clamp(9.5rem, 20vw, 13.5rem);
+  padding: 0.6rem 0.6rem 0.75rem;
+  border-radius: 14px;
+  background: #2a312c;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 10%) inset;
+  touch-action: none;
+  user-select: none;
 }
-
+.m-keys-inner {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+button.m-key {
+  min-height: 0;
+  padding: 0 0 0.55rem;
+  align-items: flex-end;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 0;
+  transition: background-color 70ms ease, transform 70ms ease, box-shadow 70ms ease;
+}
+button.m-key-white {
+  flex: 1;
+  height: 100%;
+  margin: 0 1.5px;
+  border-radius: 3px 3px 7px 7px;
+  background: linear-gradient(#fffffb, #f6f3e6 75%, #e9e5d3);
+  color: #7c8674;
+  box-shadow: 0 4px 0 #cfccb9, 0 5px 6px rgb(0 0 0 / 30%);
+}
+button.m-key-white:hover:not(:disabled) {
+  background: linear-gradient(#ffffff, #eef1e4);
+}
+button.m-key-white[data-on='true'] {
+  background: linear-gradient(#e5e8ce, #d2d9b6);
+  color: var(--m-accent);
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #cfccb9, 0 2px 3px rgb(0 0 0 / 30%);
+}
+button.m-key-black {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  width: 4.4%;
+  height: 61%;
+  translate: -50% 0;
+  border-radius: 2px 2px 5px 5px;
+  background: linear-gradient(#454c47, #1c211e);
+  color: #c9d0c4;
+  box-shadow: 0 4px 0 #0f1210, 0 7px 8px rgb(0 0 0 / 40%), 0 1px 0 rgb(255 255 255 / 14%) inset;
+}
+button.m-key-black:hover:not(:disabled) {
+  background: linear-gradient(#566058, #272d29);
+}
+button.m-key-black[data-on='true'] {
+  background: linear-gradient(#789575, #365c43);
+  color: #fff;
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #0f1210, 0 3px 5px rgb(0 0 0 / 40%);
+}
+button.m-key:disabled {
+  opacity: 0.6;
+}
+button.m-key:focus-visible {
+  outline: 2px solid var(--m-sage);
+  outline-offset: -3px;
+}
+@media (max-width: 720px) {
+  /* Two octaves do not fit a phone at a playable size: the keyboard keeps its key width and slides sideways. */
+  .m-keys {
+    overflow-x: auto;
+    touch-action: pan-x;
+  }
+  .m-keys-inner {
+    flex: none;
+    width: 640px;
+  }
+}

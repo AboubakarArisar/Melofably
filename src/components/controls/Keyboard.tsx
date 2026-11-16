@@ -42,22 +42,15 @@ export function Keyboard({ disabled, active, noteName, frequencyOf, onPlay }: Pr
         key={fret}
         type="button"
         disabled={disabled}
+        data-on={on}
+        aria-pressed={on}
         aria-label={`${noteName} ${fret}, ${frequencyOf(fret).toFixed(1)} hertz`}
         title={`${noteName} ${fret}: ${frequencyOf(fret).toFixed(1)} Hz`}
         onPointerDown={() => onPlay(fret)}
         // Keyboard users: Enter/Space on a focused key.
         onClick={(e) => e.detail === 0 && onPlay(fret)}
-        style={
-          black
-            ? { left: `${(WHITE.filter((w) => w < fret).length / WHITE.length) * 100}%` }
-            : undefined
-        }
-        className={
-          'm-key flex items-end justify-center pb-1 text-xs select-none disabled:opacity-40 ' +
-          (black
-            ? `absolute top-0 z-10 h-3/5 w-[4.5%] -translate-x-1/2 rounded-b border border-neutral-100 text-neutral-950 ${on ? 'bg-sky-500' : 'bg-neutral-100'}`
-            : `h-full flex-1 rounded-b border border-neutral-600 text-neutral-400 ${on ? 'bg-amber-900' : 'bg-neutral-900'}`)
-        }
+        style={black ? { left: `${(WHITE.filter((w) => w < fret).length / WHITE.length) * 100}%` } : undefined}
+        className={`m-key ${black ? 'm-key-black' : 'm-key-white'}`}
       >
         {CODES[fret].replace(/Key|Digit/, '')}
       </button>
@@ -65,9 +58,11 @@ export function Keyboard({ disabled, active, noteName, frequencyOf, onPlay }: Pr
   }
 
   return (
-    <div className="relative flex h-40 touch-none">
-      {WHITE.map(key)}
-      {FRETS.filter(isBlack).map(key)}
+    <div className="m-keys" role="group" aria-label="Playing keyboard: two octaves">
+      <div className="m-keys-inner">
+        {WHITE.map(key)}
+        {FRETS.filter(isBlack).map(key)}
+      </div>
     </div>
   )
 }

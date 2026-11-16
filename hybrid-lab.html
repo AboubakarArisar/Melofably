@@ -8,46 +8,46 @@
     <link rel="stylesheet" href="/src/ui/controls.css" />
     <style>
       :root { color-scheme: light; }
-      body { font: 15px/1.5 var(--m-font); margin: 0; } main.lab { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
+      body { font: 15px/1.55 var(--m-font); margin: 0; } main.lab { max-width: 980px; margin: 1.5rem auto; padding: 0 1rem; }
       h1 { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 0.25rem; }
       p.note { color: var(--m-text-2); margin-top: 0; }
-      fieldset { border: 1px solid var(--m-border); background: var(--m-surface); border-radius: 10px; margin: 1rem 0; padding: 0.9rem 1.1rem; min-width: 0; }
-      legend { color: var(--m-text-2); padding: 0 0.4rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+      fieldset { border: 1px solid var(--m-border); background: var(--m-surface); border-radius: 16px; margin: 1rem 0; padding: 1rem 1.25rem; min-width: 0; }
+      legend { color: var(--m-accent); padding: 0 0.4rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
       .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 0 1rem; }
       button { font: inherit; font-size: 0.875rem; font-weight: 500; color: var(--m-text); background: var(--m-surface); border: 1px solid var(--m-border-strong); padding: 0 0.95rem; margin: 0.15rem 0.2rem 0.15rem 0; } select { margin: 0.15rem 0.2rem 0.15rem 0; }
-      button.big { background: var(--m-brand); border-color: var(--m-brand); color: var(--m-bg); padding: 0 1.3rem; min-height: 44px; font-weight: 600; } button.big:hover:not(:disabled) { background: var(--m-brand-hover); }
+      button.big { background: var(--m-brand); border-color: var(--m-brand); color: #fff; padding: 0 1.3rem; min-height: 44px; font-weight: 600; } button.big:hover:not(:disabled) { background: var(--m-brand-hover); }
       button:hover:not(:disabled):not(.big) { background: var(--m-muted); }
       button:disabled, select:disabled, input:disabled { opacity: 0.45; cursor: default; }
-      button[aria-pressed='true'] { background: #f6e3c8; border-color: #a8650f; color: var(--m-text); }
+      button[aria-pressed='true'] { background: #e5e8ce; border-color: #a8650f; color: #26382c; }
       
       label { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 9.5rem; gap: 0.6rem; align-items: center; margin: 0.3rem 0; }
       label select { grid-column: 2 / 4; margin: 0; min-width: 0; max-width: 100%; }
       input[type='range'] { width: 100%; }
       output { font-variant-numeric: tabular-nums; color: var(--m-text-2); }
-      kbd { background: var(--m-muted); border: 1px solid var(--m-border-strong); border-radius: 4px; padding: 0 0.35rem; font: 600 12px var(--m-font); color: var(--m-text); } button.big kbd { background: rgb(255 240 220 / 18%); border-color: rgb(255 240 220 / 35%); color: var(--m-bg); }
+      kbd { background: var(--m-muted); border: 1px solid var(--m-border-strong); border-radius: 4px; padding: 0 0.35rem; font: 600 12px var(--m-font); color: var(--m-text); } button.big kbd { background: rgb(255 255 255 / 16%); border-color: rgb(255 255 255 / 35%); color: #fff; }
       pre { background: var(--m-control); border: 1px solid var(--m-border); border-radius: 8px; padding: 0.75rem; overflow: auto; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; margin: 0.4rem 0 0; color: var(--m-text); }
       [role='alert'] { color: var(--m-error); min-height: 1.5em; font-weight: 500; }
       svg { width: 100%; height: auto; display: block; }
-      .board { fill: #ecd9bc; stroke: #b79b74; }
+      .board { fill: #eef1e4; stroke: #b7c3b1; }
       .bar { fill: #a9b0b8; stroke: #6e7780; }
-      .pad { fill: #32745b; }
-      .string { stroke: #8a6a3a; stroke-width: 2.5; }
-      .tie { fill: #8a6a3a; }
-      .place { fill: none; stroke: #790b13; stroke-width: 1.5; }
+      .pad { fill: #789575; }
+      .string { stroke: #4b5a4e; stroke-width: 2.5; }
+      .tie { fill: #4b5a4e; }
+      .place { fill: none; stroke: #365c43; stroke-width: 1.5; }
       .finger { fill: #a8650f; opacity: 0; transition: opacity 0.08s; }
       .finger.on { opacity: 0.95; }
       .glow { opacity: 0; fill: none; stroke-width: 6; pointer-events: none; }
       .glow.string-glow { stroke: #c58b2a; }
-      .glow.bar-glow { stroke: #790b13; }
+      .glow.bar-glow { stroke: #365c43; }
       .hit { animation: hit 0.35s ease-out; }
       @keyframes hit { from { opacity: 1; } to { opacity: 0; } }
-      svg text { fill: #746566; font: 12px var(--m-font); } svg#picture { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 10px; padding: 0.5rem; box-sizing: border-box; }
+      svg text { fill: #526354; font: 12px var(--m-font); } svg#picture { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 16px; padding: 0.5rem; box-sizing: border-box; }
       details { margin: 1rem 0; }
       summary { cursor: pointer; color: var(--m-brand); font-weight: 600; }
       ol, ul { padding-left: 1.3rem; }
-      .kind { margin: 0.2rem 0 0.6rem; padding: 0.3rem 0.6rem; border-radius: 4px; border-left: 4px solid; }
-      .kind.experimental { border-color: #a8650f; background: #f6e3c8; }
-      .kind.approved { border-color: #32745b; background: #e2f0e8; }
+      .kind { color: #26382c; margin: 0.2rem 0 0.6rem; padding: 0.3rem 0.6rem; border-radius: 4px; border-left: 4px solid; }
+      .kind.experimental { border-color: #a8650f; background: #f4ecd2; }
+      .kind.approved { border-color: #365c43; background: #eef1e4; }
       .held { display: block; color: var(--m-text-2); font-size: 13px; margin: 0.1rem 0 0.4rem; }
       @media (prefers-reduced-motion: reduce) { .hit { animation: none; } }
       /* On a narrow screen a name, its slider and its value do not fit side by side: one under the other. */
@@ -62,9 +62,8 @@
   <body>
     <header class="m-bar">
       <a class="m-wordmark" href="/" aria-label="Melofably, home">Melofably</a>
-      <span class="m-tagline">Invent instruments. Shape sound.</span>
       <nav class="m-nav" aria-label="Melofably">
-        <a href="/">Instruments</a>
+        <a href="/studio.html">Instruments</a>
         <a href="/builder.html">Builder</a>
         <a href="/hybrid-lab.html" aria-current="page">Hybrid Lab</a>
       </nav>
@@ -90,7 +89,7 @@
       <p class="note">One volume for everything, like the knob on an amplifier. It is not part of the instrument and is the same for every choice above.</p>
     </fieldset>
 
-    <svg id="picture" viewBox="0 0 860 330" role="img" aria-labelledby="pictureTitle">
+    <svg id="picture" class="m-ivory" viewBox="0 0 860 330" role="img" aria-labelledby="pictureTitle">
       <title id="pictureTitle">The instrument from above: a string running to a metal bar that stands on two pads on a soundboard</title>
       <rect class="board" x="480" y="30" width="350" height="280" rx="4" />
       <text x="826" y="48" text-anchor="end">soundboard, 0.5 × 0.4 m</text>

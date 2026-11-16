@@ -56,8 +56,8 @@ const INITIAL = initial()
 type Action = { type: 'edit'; graph: Graph; key?: string } | { type: 'undo' } | { type: 'redo' }
 const reducer = (h: History, action: Action): History => (action.type === 'edit' ? commit(h, action.graph, action.key, performance.now()) : action.type === 'undo' ? undo(h) : redo(h))
 
-const button = 'rounded border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
-const primary = 'rounded border border-sky-400 bg-sky-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
+const button = 'border border-neutral-600 bg-neutral-900 px-3.5 text-sm text-sky-500 hover:bg-neutral-800 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
+const primary = 'border border-sky-500 bg-sky-500 px-3.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
 
 export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: string) => void } = {}) {
   const [history, dispatch] = useReducer(reducer, INITIAL.graph, startHistory)
@@ -324,7 +324,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
         </div>
       </header>
 
-      <section aria-label="Audio" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
+      <section aria-label="Audio" className="mb-4 flex flex-wrap items-center gap-3 m-panel p-3">
         {state.running ? (
           <button className={button} onClick={stop} disabled={busy}>
             <Square aria-hidden="true" />
@@ -378,7 +378,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)_21rem]">
-        <nav aria-label="Components to add" className="rounded-lg border border-neutral-800 bg-neutral-900 p-3 lg:self-start">
+        <nav aria-label="Components to add" className="m-panel p-3 lg:self-start">
           <h2 className="mb-2 text-base font-semibold">Add</h2>
           {(
             [

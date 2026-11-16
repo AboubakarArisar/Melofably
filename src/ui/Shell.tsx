@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Toaster } from 'react-hot-toast'
 
 const PAGES = [
-  { id: 'instruments', label: 'Instruments', href: '/' },
+  { id: 'instruments', label: 'Instruments', href: '/studio.html' },
   { id: 'builder', label: 'Builder', href: '/builder.html' },
   { id: 'lab', label: 'Hybrid Lab', href: '/hybrid-lab.html' },
 ] as const
@@ -18,7 +18,6 @@ export function BrandBar({ current }: { current: PageId }) {
       <a className="m-wordmark" href="/" aria-label="Melofably, home">
         Melofably
       </a>
-      <span className="m-tagline">Invent instruments. Shape sound.</span>
       <nav className="m-nav" aria-label="Melofably">
         {PAGES.map((page) => (
           <a key={page.id} href={page.href} aria-current={page.id === current ? 'page' : undefined}>
@@ -39,9 +38,9 @@ export function Shell({ current, children }: { current: PageId; children: ReactN
         position="bottom-right"
         toastOptions={{
           duration: 3500,
-          style: { background: '#fffaf3', color: '#281b1c', border: '1px solid #e6d9ce', borderRadius: '10px', boxShadow: '0 1px 2px rgb(40 27 28 / 6%), 0 8px 24px rgb(40 27 28 / 12%)', fontSize: '0.875rem', maxWidth: 'min(26rem, calc(100vw - 2rem))' },
-          success: { iconTheme: { primary: '#32745b', secondary: '#fffaf3' } },
-          error: { duration: 6000, iconTheme: { primary: '#b42332', secondary: '#fffaf3' } },
+          style: { background: '#ffffff', color: '#26382c', border: '1px solid #d5ddce', borderRadius: '12px', boxShadow: '0 10px 28px rgb(38 56 44 / 14%)', fontSize: '0.875rem', fontWeight: 500, maxWidth: 'min(26rem, calc(100vw - 2rem))' },
+          success: { iconTheme: { primary: '#365c43', secondary: '#ffffff' } },
+          error: { duration: 6000, iconTheme: { primary: '#a8322b', secondary: '#ffffff' } },
         }}
       />
     </>

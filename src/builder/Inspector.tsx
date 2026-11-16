@@ -94,12 +94,12 @@ function Field({ spec, value, onChange, restarts = !spec.live }: { spec: ParamSp
   )
 }
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
-  <section aria-label="Properties" className="rounded-lg border border-neutral-800 bg-neutral-900 p-4">
+  <section aria-label="Properties" className="m-panel p-4">
     <h2 className="mb-3 text-base font-semibold text-neutral-100">{title}</h2>
     {children}
   </section>
 )
-const button = 'rounded border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
+const button = 'border border-neutral-600 bg-neutral-900 px-3.5 text-sm text-sky-500 hover:bg-neutral-800 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
 
 export function Inspector(props: Props) {
   const { graph, selection, sampleRate, running } = props

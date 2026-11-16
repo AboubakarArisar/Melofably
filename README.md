@@ -54,7 +54,7 @@ Documentation:
 
 ## Playing it
 
-1. Run `npm run dev` and open http://localhost:5173.
+1. Run `npm run dev` and open http://localhost:5173 (the landing page); the four validated instruments are at http://localhost:5173/studio.html.
 2. Choose **String**, **Metal Bar**, **Glass Vessel** or **Wooden Bar**, then press **Start Audio** (browsers
    only allow audio after a click). The instrument can be changed while
    audio is running.

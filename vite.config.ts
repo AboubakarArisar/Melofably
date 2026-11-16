@@ -4,8 +4,8 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // The three pages of the product: the instruments, the builder, and the Hybrid Lab.
-  build: { rollupOptions: { input: { main: 'index.html', builder: 'builder.html', lab: 'hybrid-lab.html' } } },
+  // The pages of the product: the landing page, the instrument studio, the builder, and the Hybrid Lab.
+  build: { rollupOptions: { input: { main: 'index.html', studio: 'studio.html', builder: 'builder.html', lab: 'hybrid-lab.html' } } },
   test: {
     include: ['tests/**/*.test.ts'],
     // Rendering and analysing seconds of audio per case is slow on a busy machine. The slowest tests

@@ -153,3 +153,12 @@ The same configuration. The suite is 526 tests in 32 files. The page was also dr
 ## Melofably rebrand and redesign
 
 The same configuration and the same 526 tests in 32 files: the redesign changes styles, markup and names, not behaviour. The pages were checked in a browser at desktop and phone widths; see the delivery report.
+
+## Sage-and-ivory redesign: landing page and studio
+
+Presentation only: no synthesis, solver, worklet, tuning or reference file changed (the four WAV hashes are
+unchanged). `/` is now the landing page and the validated instruments moved to `/studio.html`; `builder.html`
+and `hybrid-lab.html` are where they were. Checked by hand in Chromium at 1280 px and 375 px: landing page
+sections and links, starting audio and playing a key on the studio page (signal measured on the analyser, not
+listened to), a slider changing its shown value and the pitch readout, the builder, the hybrid template's
+save and reload, and the Hybrid Lab. Not checked: Firefox and Safari, a real touch screen, a screen reader.

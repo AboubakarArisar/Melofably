@@ -15,7 +15,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel, danger = false,
   return (
     <dialog
       ref={ref}
-      className="m-dialog"
+      className="m-dialog m-ivory"
       aria-labelledby="m-dialog-title"
       onCancel={(e) => {
         e.preventDefault() // Escape: the page decides, so that its state and the dialog agree

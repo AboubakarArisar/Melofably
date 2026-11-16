@@ -10,13 +10,14 @@ import { validate, type Issue } from '../experimental/graph2/validate.ts'
 import { FULL_SCALE, keyAction, PLUCK_FORCE, pluckLevel, STRIKE_SPEED, strikeLevel, type Strength } from '../experimental/hybrid/instrument.ts'
 import { BAR_TOUCH } from '../experimental/string/stringBarBody.ts'
 import { BODY } from '../experimental/string/stringBody.ts'
+import { Slider } from '../ui/Slider.tsx'
 import { compileHybrid, HYBRID_STORAGE_KEY, hybridTemplate, IDS, openText, rename, saveText, setMaterial, setPads, setParam, setPort, setStriker, setTie } from './hybrid.ts'
 import { HybridVoice, type HybridStatus } from './hybridAudio.ts'
 
-const button = 'rounded border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
-const primary = 'rounded border border-sky-400 bg-sky-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
+const button = 'border border-neutral-600 bg-neutral-900 px-3.5 text-sm text-sky-500 hover:bg-neutral-800 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
+const primary = 'border border-sky-500 bg-sky-500 px-3.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
 const held = 'border-amber-300 bg-amber-900'
-const panel = 'rounded-lg border border-neutral-800 bg-neutral-900 p-3'
+const panel = 'm-panel space-y-3 p-4'
 
 const stored = () => {
   try {
@@ -27,30 +28,8 @@ const stored = () => {
 }
 
 /** A number with a slider. `log`: the slider moves in equal ratios. The number shown is the number set. */
-function Field({ label, unit, value, min, max, step, log, hint, onChange }: { label: string; unit?: string; value: number; min: number; max: number; step: number; log?: boolean; hint?: string; onChange: (value: number) => void }) {
-  const id = `f-${label.replace(/\W+/g, '-')}`
-  const shown = Math.abs(value) >= 10000 ? value.toExponential(2) : String(Number(value.toPrecision(5)))
-  return (
-    <label htmlFor={id} className="mb-2 block text-sm" title={hint}>
-      <span className="flex justify-between gap-2">
-        <span className="text-neutral-300">{label}</span>
-        <output className="tabular-nums text-neutral-400">
-          {shown}
-          {unit ? ` ${unit}` : ''}
-        </output>
-      </span>
-      <input
-        id={id}
-        type="range"
-        className="w-full accent-sky-400"
-        min={log ? Math.log10(min) : min}
-        max={log ? Math.log10(max) : max}
-        step={log ? 0.01 : step}
-        value={log ? Math.log10(value) : value}
-        onChange={(e) => onChange(log ? Number((10 ** Number(e.target.value)).toPrecision(3)) : Number(e.target.value))}
-      />
-    </label>
-  )
+function Field(props: { label: string; unit?: string; value: number; min: number; max: number; step: number; log?: boolean; hint?: string; onChange: (value: number) => void }) {
+  return <Slider {...props} showRange={false} format={(v) => (Math.abs(v) >= 10000 ? v.toExponential(2) : String(Number(v.toPrecision(5))))} />
 }
 
 // The picture: seen from above, to scale, 700 px to the metre, the board's corner at (520, 30).
@@ -369,40 +348,40 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="min-w-0">
-          <svg viewBox="0 0 900 330" role="img" aria-label="The instrument from above: a string tied to a metal bar that stands on two pads on a soundboard" className={`w-full ${panel}`}>
-            <rect x={BOARD.x} y={BOARD.y} width={BODY.plate.length * PX} height={BODY.plate.width * PX} rx="4" fill="#ecd9bc" stroke="#b79b74" />
-            <text x={BOARD.x + BODY.plate.length * PX - 6} y={BOARD.y + 16} textAnchor="end" fill="#746566" fontSize="12">
+          <svg viewBox="0 0 900 330" role="img" aria-label="The instrument from above: a string tied to a metal bar that stands on two pads on a soundboard" className="m-ivory m-card w-full bg-neutral-900 p-3">
+            <rect x={BOARD.x} y={BOARD.y} width={BODY.plate.length * PX} height={BODY.plate.width * PX} rx="4" fill="#eef1e4" stroke="#b7c3b1" />
+            <text x={BOARD.x + BODY.plate.length * PX - 6} y={BOARD.y + 16} textAnchor="end" fill="#526354" fontSize="12">
               body: soundboard 0.5 × 0.4 m on enclosed air (what is heard)
             </text>
             <rect x={left} y={y - 7} width={length} height="14" rx="2" fill="#a9b0b8" stroke="#6e7780" style={{ cursor: 'pointer' }} onPointerDown={strike}>
               <title>Metal bar: click to strike</title>
             </rect>
-            <rect key={`b${flash.bar}`} x={left - 3} y={y - 10} width={length + 6} height="20" rx="4" fill="none" stroke="#790b13" strokeWidth="6" pointerEvents="none" opacity={glow(status?.barEnergy)} />
-            <line x1={nut} x2={end} y1={y} y2={y} stroke="#8a6a3a" strokeWidth="3" style={{ cursor: 'pointer' }} onPointerDown={pluck}>
+            <rect key={`b${flash.bar}`} x={left - 3} y={y - 10} width={length + 6} height="20" rx="4" fill="none" stroke="#365c43" strokeWidth="6" pointerEvents="none" opacity={glow(status?.barEnergy)} />
+            <line x1={nut} x2={end} y1={y} y2={y} stroke="#4b5a4e" strokeWidth="3" style={{ cursor: 'pointer' }} onPointerDown={pluck}>
               <title>String: click to pluck</title>
             </line>
             <line key={`s${flash.string}`} x1={nut} x2={end} y1={y} y2={y} stroke="#c58b2a" strokeWidth="7" pointerEvents="none" opacity={glow(status?.stringEnergy)} />
             {/* Mechanical connections: two pads (bar to board) and the tie (string end to bar). */}
-            <circle cx={barX(port(bar, 'pad-a'))} cy={y} r="5" fill="#32745b" />
-            <circle cx={barX(port(bar, 'pad-b'))} cy={y} r="5" fill="#32745b" />
-            <circle cx={end} cy={y} r="4" fill="#8a6a3a" stroke="#fffaf3" />
-            <text x={end} y={y - 16} textAnchor="middle" fill="#6b4a1e" fontSize="12">{`tie at ${port(bar, 'tie').toFixed(3)}`}</text>
-            <text x={barX(0.5)} y={y + 30} textAnchor="middle" fill="#32745b" fontSize="12">
+            <circle cx={barX(port(bar, 'pad-a'))} cy={y} r="5" fill="#789575" />
+            <circle cx={barX(port(bar, 'pad-b'))} cy={y} r="5" fill="#789575" />
+            <circle cx={end} cy={y} r="4" fill="#4b5a4e" stroke="#ffffff" />
+            <text x={end} y={y - 16} textAnchor="middle" fill="#526354" fontSize="12">{`tie at ${port(bar, 'tie').toFixed(3)}`}</text>
+            <text x={barX(0.5)} y={y + 30} textAnchor="middle" fill="#789575" fontSize="12">
               pads (green) at {port(bar, 'pad-a').toFixed(3)} and {port(bar, 'pad-b').toFixed(3)}
             </text>
             {/* Places to play. */}
-            <circle cx={pluckX} cy={y} r="8" fill="none" stroke="#790b13" strokeWidth="1.5" />
-            <text x={pluckX} y={y + 26} textAnchor="middle" fill="#746566" fontSize="12">
+            <circle cx={pluckX} cy={y} r="8" fill="none" stroke="#365c43" strokeWidth="1.5" />
+            <text x={pluckX} y={y + 26} textAnchor="middle" fill="#526354" fontSize="12">
               pluck
             </text>
-            <path d={`M ${barX(port(bar, 'middle')) - 5} ${y - 20} l 5 9 l 5 -9 z`} fill="#790b13" />
+            <path d={`M ${barX(port(bar, 'middle')) - 5} ${y - 20} l 5 9 l 5 -9 z`} fill="#365c43" />
             <circle cx={barX(port(bar, 'touch'))} cy={y} r="9" fill={fingers.damp ? '#a8650f' : 'none'} stroke="#a8650f" strokeDasharray={fingers.damp ? undefined : '3 3'} />
             <circle cx={pluckX} cy={y} r="5" fill={fingers.mute ? '#a8650f' : 'none'} />
-            <text x={nut} y={y + 26} fill="#746566" fontSize="12">
+            <text x={nut} y={y + 26} fill="#526354" fontSize="12">
               nut
             </text>
-            <text x="20" y="318" fill="#746566" fontSize="12">
-              Seen from above, to scale. Blue ring: pluck. Blue arrow: strike. Orange: finger places (filled when down). The glow follows the energy the string and the bar hold.
+            <text x="20" y="318" fill="#526354" fontSize="12">
+              Seen from above, to scale. Green ring: pluck. Green arrow: strike. Orange: a finger's place. The glow follows the energy held.
             </text>
           </svg>
 
