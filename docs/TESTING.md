@@ -144,3 +144,8 @@ The same configuration. The suite is 449 tests in 30 files. The runs made are re
 ## Phase 3D.15
 
 The same configuration. The suite is 522 tests in 31 files. The runs made are recorded in the phase's report; the test described under "One test that is not deterministic" was not changed.
+
+
+## MVP: the hybrid in the builder
+
+The same configuration. The suite is 526 tests in 32 files. The page was also driven through its 14-step workflow in a browser; see the delivery report.

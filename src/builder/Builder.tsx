@@ -56,7 +56,7 @@ const reducer = (h: History, action: Action): History => (action.type === 'edit'
 const button = 'rounded border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400'
 const primary = 'rounded border border-sky-400 bg-sky-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300'
 
-export default function Builder() {
+export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: string) => void } = {}) {
   const [history, dispatch] = useReducer(reducer, INITIAL.graph, startHistory)
   const graph = history.present
   const [selection, setSelection] = useState<Selection>(null)
@@ -266,7 +266,16 @@ export default function Builder() {
           <label htmlFor="example" className="sr-only">
             Load an example
           </label>
-          <select id="example" value="" onChange={(e) => e.target.value && load([...EXAMPLES, ...STRING_EXAMPLES, ...RADIATION_EXAMPLES].find((x) => x.id === e.target.value)!.make())} className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm">
+          <select
+            id="example"
+            value=""
+            onChange={(e) => {
+              // The hybrid (a string on a bar bridge) is a different kind of instrument with its own page of the builder.
+              if (e.target.value.startsWith('hybrid:')) return onOpenHybrid?.(e.target.value.slice(7))
+              if (e.target.value) load([...EXAMPLES, ...STRING_EXAMPLES, ...RADIATION_EXAMPLES].find((x) => x.id === e.target.value)!.make())
+            }}
+            className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm"
+          >
             <option value="">Load an example…</option>
             {EXAMPLES.map((x) => (
               <option key={x.id} value={x.id}>
@@ -287,6 +296,13 @@ export default function Builder() {
                 </option>
               ))}
             </optgroup>
+            {onOpenHybrid && (
+              <optgroup label="Experimental: string on a bar bridge (opens the hybrid builder)">
+                <option value="hybrid:0.20">Hybrid, string tied at 0.20 of the bar</option>
+                <option value="hybrid:0.18">Hybrid, string tied at 0.18 of the bar</option>
+                <option value="hybrid:saved">Your saved hybrid, if there is one</option>
+              </optgroup>
+            )}
           </select>
           <button className={button} onClick={() => load(emptyGraph())} disabled={graph.components.length === 0}>
             Clear

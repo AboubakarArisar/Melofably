@@ -80,6 +80,14 @@ npm run dev
 
 Then open http://localhost:5173.
 
+**MVP: the hybrid in the builder.** At http://localhost:5173/builder.html,
+choose "Hybrid, string tied at 0.20 of the bar" from the instrument list:
+an editable string-on-a-bar-bridge instrument that can be played (pluck,
+strike, mute, damp), changed, saved in the browser as a version 2 graph
+and reopened. It is one fixed assembly with editable sizes, attachment
+points and strengths, not free construction. Experimental; not yet judged
+by ear.
+
 The instrument builder is at http://localhost:5173/builder.html and the
 experimental engine's test page at http://localhost:5173/experimental.html
 (both development server only). The experimental hybrid instrument (a
