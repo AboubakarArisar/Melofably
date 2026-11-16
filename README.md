@@ -45,6 +45,7 @@ Documentation:
 - [A finger on the bar: damping and two playing gestures](docs/BAR_DAMPING.md)
 - [The hybrid lab: playing the bar-as-bridge instrument in the browser](docs/HYBRID_LAB.md)
 - [The hybrid lab under real use: audit, latency, fixes](docs/HYBRID_LAB_PLAYABILITY.md)
+- [Bringing the hybrid into the builder: architecture and feasibility (a design, not built)](docs/HYBRID_BUILDER_DESIGN.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 

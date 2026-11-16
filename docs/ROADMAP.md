@@ -212,6 +212,17 @@ starts there. Five minutes of continuous playing clean. Technically ready
 for an integration *design* phase, subject to listening. See
 [HYBRID_LAB_PLAYABILITY.md](HYBRID_LAB_PLAYABILITY.md).
 
+Phase 3D.14 (a design, awaiting review; nothing integrated): how the
+hybrid could be represented in the builder. The builder's graph cannot
+express it as it is (no ports; a bar and a body may not share an
+instrument); the engine needs no change. Proposed: components with named
+ports and typed connections between ports, saved as a new format version
+beside the present one, compiled at first only for recognised assemblies
+through the validated model. A proof of concept compiles such a graph to
+exactly the standalone reference's engine calls. A staged plan begins
+with pure code that nothing imports. See
+[HYBRID_BUILDER_DESIGN.md](HYBRID_BUILDER_DESIGN.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.
