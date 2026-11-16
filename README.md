@@ -43,6 +43,7 @@ Documentation:
 - [Three coupled parts: another way to put them together (the bar as the string's bridge)](docs/THREE_BODY_ARCHITECTURE.md)
 - [The bar-as-bridge instrument: its voices and how it answers to playing](docs/BAR_BRIDGE_CHARACTER.md)
 - [A finger on the bar: damping and two playing gestures](docs/BAR_DAMPING.md)
+- [The hybrid lab: playing the bar-as-bridge instrument in the browser](docs/HYBRID_LAB.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -78,7 +79,10 @@ Then open http://localhost:5173.
 
 The instrument builder is at http://localhost:5173/builder.html and the
 experimental engine's test page at http://localhost:5173/experimental.html
-(both development server only).
+(both development server only). The experimental hybrid instrument (a
+string whose bridge is a metal bar) can be played at
+http://localhost:5173/hybrid-lab.html, also development server only; see
+[docs/HYBRID_LAB.md](docs/HYBRID_LAB.md).
 
 ## Scripts
 
@@ -138,6 +142,7 @@ src/
   types/            shared types
 assembly/           AssemblyScript source of the WebAssembly physics engine
 experimental.html   development-only test page for that engine
+hybrid-lab.html     development-only page for playing the experimental hybrid instrument
 builder.html        development-only instrument builder page
 tests/              Vitest tests; tests/baseline/ holds the approved audio
 analysis/           signal measurements, frozen Phase 1 model, render scripts

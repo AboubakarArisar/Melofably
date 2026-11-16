@@ -194,6 +194,13 @@ the bar ringing. Never used, the finger changes no sample of the 3D.10
 reference. Still isolated; not heard; real-time safety in the browser
 still not demonstrated. See [BAR_DAMPING.md](BAR_DAMPING.md).
 
+Phase 3D.12 (awaiting the user's listening): a standalone page,
+`hybrid-lab.html`, on which that instrument is played in real time:
+pluck, strike, mute and damp, with both fingers independent. It runs the
+validated model on an experimental processor that extends the engine's own
+without changing it. Not heard; not in the builder. See
+[HYBRID_LAB.md](HYBRID_LAB.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

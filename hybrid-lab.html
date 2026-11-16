@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SonicMatter: hybrid lab</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { font: 15px/1.5 system-ui, sans-serif; background: #111418; color: #e6e8eb; max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
+      h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+      p.note { color: #9aa3ad; margin-top: 0; }
+      fieldset { border: 1px solid #2c333b; border-radius: 6px; margin: 1rem 0; padding: 0.75rem 1rem; min-width: 0; }
+      legend { color: #9aa3ad; padding: 0 0.4rem; }
+      .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 0 1rem; }
+      button, select { font: inherit; color: inherit; background: #1f262d; border: 1px solid #3a434d; border-radius: 4px; padding: 0.45rem 0.8rem; margin: 0.15rem 0.2rem 0.15rem 0; cursor: pointer; touch-action: manipulation; }
+      button.big { padding: 0.7rem 1.4rem; font-weight: 600; }
+      button:hover:not(:disabled) { background: #2a333c; }
+      button:disabled, select:disabled, input:disabled { opacity: 0.45; cursor: default; }
+      button[aria-pressed='true'] { background: #7a4b12; border-color: #d99a3d; }
+      button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid #6cb2ff; outline-offset: 2px; }
+      label { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 5.5rem; gap: 0.6rem; align-items: center; margin: 0.3rem 0; }
+      label select { grid-column: 2 / 4; margin: 0; min-width: 0; max-width: 100%; }
+      input[type='range'] { width: 100%; }
+      output { font-variant-numeric: tabular-nums; color: #9aa3ad; }
+      kbd { background: #1f262d; border: 1px solid #3a434d; border-radius: 3px; padding: 0 0.35rem; font: 13px ui-monospace, monospace; }
+      pre { background: #0b0d10; border: 1px solid #2c333b; border-radius: 6px; padding: 0.75rem; overflow: auto; font-size: 13px; white-space: pre-wrap; margin: 0.4rem 0 0; }
+      [role='alert'] { color: #ff8a80; min-height: 1.5em; }
+      svg { width: 100%; height: auto; display: block; }
+      .board { fill: #2a2118; stroke: #6b563c; }
+      .bar { fill: #8f9aa6; stroke: #c9d2dc; }
+      .pad { fill: #2f8f58; }
+      .string { stroke: #d9c79a; stroke-width: 2; }
+      .tie { fill: #d9c79a; }
+      .place { fill: none; stroke: #6cb2ff; stroke-width: 1.5; }
+      .finger { fill: #d99a3d; opacity: 0; transition: opacity 0.08s; }
+      .finger.on { opacity: 0.95; }
+      .glow { opacity: 0; fill: none; stroke-width: 6; pointer-events: none; }
+      .glow.string-glow { stroke: #ffe9a8; }
+      .glow.bar-glow { stroke: #bfe3ff; }
+      .hit { animation: hit 0.35s ease-out; }
+      @keyframes hit { from { opacity: 1; } to { opacity: 0; } }
+      svg text { fill: #9aa3ad; font: 12px system-ui, sans-serif; }
+      details { margin: 1rem 0; }
+      summary { cursor: pointer; color: #c9d2dc; }
+      ol { padding-left: 1.3rem; }
+      @media (prefers-reduced-motion: reduce) { .hit { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <h1>Hybrid lab: a string whose bridge is a metal bar</h1>
+    <p class="note">
+      Experimental (Phase 3D.12). Separate from the four approved instruments and from the builder, which it does not touch. Everything you hear is the
+      physical model's sound pressure in front of the soundboard; nothing is sampled, filtered, compressed or faded. Nobody has listened to this instrument
+      yet: the judgement is yours.
+    </p>
+    <div id="error" role="alert"></div>
+
+    <fieldset>
+      <legend>Audio</legend>
+      <label>Instrument <select id="choice" aria-describedby="choiceNote"></select></label>
+      <p class="note" id="choiceNote">Choosing another instrument builds a new one: whatever was sounding stops and both fingers are lifted.</p>
+      <button id="start" class="big">Start audio</button>
+      <button id="stop" disabled>Stop</button>
+      <output id="state">stopped</output>
+      <label>Listening volume <input id="volume" type="range" min="-12" max="36" step="1" value="0" /> <output id="volumeValue"></output></label>
+      <p class="note">One volume for everything, like the knob on an amplifier. It is not part of the instrument and is the same for every choice above.</p>
+    </fieldset>
+
+    <svg id="picture" viewBox="0 0 860 330" role="img" aria-labelledby="pictureTitle">
+      <title id="pictureTitle">The instrument from above: a string running to a metal bar that stands on two pads on a soundboard</title>
+      <rect class="board" x="480" y="30" width="350" height="280" rx="4" />
+      <text x="826" y="48" text-anchor="end">soundboard, 0.5 × 0.4 m</text>
+      <rect class="bar" id="bar" y="116.3" height="14" rx="2" />
+      <circle class="pad" id="padA" cy="123.3" r="5" />
+      <circle class="pad" id="padB" cy="123.3" r="5" />
+      <rect class="glow bar-glow" id="barGlow" y="113.3" height="20" rx="4" />
+      <line class="string" id="string" y1="123.3" y2="123.3" />
+      <line class="glow string-glow" id="stringGlow" y1="123.3" y2="123.3" />
+      <circle class="tie" id="tie" cy="123.3" r="4" />
+      <circle class="place" id="pluckPlace" cy="123.3" r="8" />
+      <circle class="finger" id="muteFinger" cy="123.3" r="10" />
+      <circle class="finger" id="dampFinger" cy="123.3" r="10" />
+      <text id="nutLabel" y="150">nut</text>
+      <text id="pluckLabel" y="150" text-anchor="middle">pluck here</text>
+      <text id="tieLabel" y="100" text-anchor="middle"></text>
+      <text id="barLabel" y="160">aluminium bar on two pads (green)</text>
+      <text x="30" y="326">Seen from above, to scale. Orange: a finger resting. The glow follows how much energy the string and the bar hold.</text>
+    </svg>
+
+    <div class="pair">
+      <fieldset>
+        <legend>String</legend>
+        <button id="pluck" class="big" disabled>Pluck <kbd>A</kbd></button>
+        <button id="mute" aria-pressed="false" disabled>Mute string <kbd>M</kbd></button>
+        <label>Pluck strength <input id="force" type="range" min="0.5" max="8" step="0.1" value="2" /> <output id="forceValue"></output></label>
+        <label>Pluck position <select id="pluckAt"></select></label>
+      </fieldset>
+      <fieldset id="barControls">
+        <legend>Metal bar</legend>
+        <button id="strike" class="big" disabled>Strike <kbd>S</kbd></button>
+        <button id="damp" aria-pressed="false" disabled>Damp bar <kbd>D</kbd></button>
+        <label>Strike strength <input id="speed" type="range" min="0.25" max="2" step="0.05" value="1" /> <output id="speedValue"></output></label>
+        <div>
+          <button id="gentle" disabled>Gentle <kbd>1</kbd></button>
+          <button id="medium" disabled>Medium <kbd>2</kbd></button>
+          <button id="strong" disabled>Strong <kbd>3</kbd></button>
+        </div>
+        <label>Damping position <select id="dampAt"></select></label>
+        <label>Damping strength <select id="dampStrength"></select></label>
+      </fieldset>
+    </div>
+
+    <fieldset>
+      <legend>Keys</legend>
+      <p>
+        <kbd>A</kbd> pluck · <kbd>S</kbd> strike at the slider's strength · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> gentle, medium, strong strike · hold
+        <kbd>M</kbd> to mute the string · hold <kbd>D</kbd> to damp the bar. The two fingers are independent: either can be held, lifted or moved while the
+        other is. The Mute and Damp buttons stay down until pressed again; the keys act while held.
+      </p>
+    </fieldset>
+
+    <details>
+      <summary>How to listen: a short procedure</summary>
+      <ol>
+        <li>Start audio. Set the volume with a <strong>medium strike</strong> (<kbd>2</kbd>) so that it is comfortable, and leave it there for steps 2 to 8. Plucks will then be quiet: that is how much quieter a pluck is than a stroke on this instrument.</li>
+        <li><strong>Approved string instrument.</strong> Choose "Approved string on its body". Pluck (<kbd>A</kbd>) a few times at strength 2 N, position 0.8.</li>
+        <li><strong>Bar-as-bridge reference.</strong> Choose "Hybrid: string tied at 0.20". The same plucks. Then try pluck positions 0.5, 0.75 and 0.9.</li>
+        <li><strong>Attachment 0.20 against 0.18.</strong> Pluck, then strike (<kbd>2</kbd>) and let it ring; change to "tied at 0.18" and do the same.</li>
+        <li><strong>Bar without damping.</strong> Tied at 0.20: strike (<kbd>2</kbd>) and let it die away.</li>
+        <li><strong>Bar with damping.</strong> Strike and, a moment later, hold <kbd>D</kbd>. Then hold <kbd>D</kbd> first and strike. Try the three damping positions and strengths.</li>
+        <li><strong>Gentle and medium strikes.</strong> <kbd>1</kbd>, then <kbd>2</kbd>; then <kbd>3</kbd>.</li>
+        <li><strong>Pluck and strike together.</strong> Press <kbd>A</kbd> and <kbd>2</kbd> at once. Then again and hold <kbd>D</kbd> (the bar stops, the string goes on), or hold <kbd>M</kbd> (the string stops, the bar goes on), or both.</li>
+        <li>If you want to compare plucks closely, raise the volume for them and remember to lower it before striking.</li>
+      </ol>
+      <p class="note">This page does not say which is better. The model's sound pressure is not calibrated; your loudspeakers or headphones are part of what you hear.</p>
+    </details>
+
+    <fieldset>
+      <legend>Diagnostics</legend>
+      <button id="clear" disabled>Start counting again</button>
+      <pre id="status" aria-live="off">not running</pre>
+    </fieldset>
+
+    <script type="module" src="/src/experimental/hybrid/lab.ts"></script>
+  </body>
+</html>
