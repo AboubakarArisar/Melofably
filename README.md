@@ -44,6 +44,7 @@ Documentation:
 - [The bar-as-bridge instrument: its voices and how it answers to playing](docs/BAR_BRIDGE_CHARACTER.md)
 - [A finger on the bar: damping and two playing gestures](docs/BAR_DAMPING.md)
 - [The hybrid lab: playing the bar-as-bridge instrument in the browser](docs/HYBRID_LAB.md)
+- [The hybrid lab under real use: audit, latency, fixes](docs/HYBRID_LAB_PLAYABILITY.md)
 - [Running the tests: configuration, machine conditions, one test that is not deterministic](docs/TESTING.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -118,6 +119,7 @@ http://localhost:5173/hybrid-lab.html, also development server only; see
 | `npm run render:three-body-architecture` | Screen and compare other arrangements of string, bar and body (shared bridge point; the bar as the string's bridge): energy budgets, sound, robustness, playing, cost, and listening files with a manifest, into `renders/three-body-architecture/` |
 | `npm run render:bar-bridge` | The bar-as-bridge instrument in other voices: bar tuned to other harmonics, tie position, striker mass and speed, playing, cost, and listening files with a manifest, into `renders/bar-bridge/` |
 | `npm run render:bar-damping` | A finger on the bar of the bar-as-bridge instrument: contact models, landing and leaving, where it is laid, the two ties, playing with both gestures, block-by-block cost, and listening files with a manifest, into `renders/bar-damping/` |
+| `npm run render:hybrid-lab` | What the hybrid lab's controls do, measured through the lab's own instrument and processor: every pluck and strike strength, each finger gesture, and five minutes of dense playing, into `renders/hybrid-lab/` |
 | `npm run bench:wasm` | Benchmark the TypeScript engine, the WebAssembly engine and the approved Faust bar in Node |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the production build |

@@ -38,6 +38,7 @@
     "render:three-body-architecture": "node analysis/render-three-body-architecture.ts",
     "render:bar-bridge": "node analysis/render-bar-bridge.ts",
     "render:bar-damping": "node analysis/render-bar-damping.ts",
+    "render:hybrid-lab": "node analysis/render-hybrid-lab.ts",
     "bench:wasm": "node analysis/bench-wasm.ts",
     "lint": "oxlint",
     "preview": "vite preview"

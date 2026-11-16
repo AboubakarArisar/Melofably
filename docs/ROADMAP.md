@@ -201,6 +201,17 @@ validated model on an experimental processor that extends the engine's own
 without changing it. Not heard; not in the builder. See
 [HYBRID_LAB.md](HYBRID_LAB.md).
 
+Phase 3D.13 (awaiting the user's listening): the page used as a player
+would. Four defects found and fixed (keys dead after a list; suspended
+audio that could not be resumed and played late; a key cancelling a
+latched button; unusable sliders). No event dropped in about 7000. An
+action reaches the engine in under a millisecond and takes effect at the
+browser's next 10 ms batch; the browser estimates 48 ms from input to the
+device. Plucks and strokes overlap between 69 and 79 dB and the page now
+starts there. Five minutes of continuous playing clean. Technically ready
+for an integration *design* phase, subject to listening. See
+[HYBRID_LAB_PLAYABILITY.md](HYBRID_LAB_PLAYABILITY.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

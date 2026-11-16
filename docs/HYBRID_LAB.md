@@ -8,6 +8,13 @@ judged by ear.
 
 It is a usability and validation phase. No new physics was added.
 
+*Phase 3D.13 used the page as a player would and corrected what it found:
+four defects, new starting strengths (4 N and 0.5 m/s), the model's level
+shown beside both strength controls, latency figures and a listening
+checklist. See [HYBRID_LAB_PLAYABILITY.md](HYBRID_LAB_PLAYABILITY.md).
+Where this document and that one differ about the page, that one is
+current.*
+
 - **Page:** `hybrid-lab.html`. Run `npm run dev` and open
   `http://localhost:5173/hybrid-lab.html` (or whatever port Vite reports;
   development only, like

@@ -29,9 +29,36 @@ export const DAMP_PLACES = [
 ]
 /** Pascals at the audio node's ceiling: a strong stroke peaks at 4.1 Pa, a 2 N pluck at 0.19 Pa. One value for every instrument. */
 export const FULL_SCALE = 8
-/** Ranges of the two strength controls: pluck force, N, and the 5 g striker's speed, m/s. */
-export const PLUCK_FORCE = { min: 0.5, max: 8, default: 2 }
-export const STRIKE_SPEED = { min: 0.25, max: 2, ...STROKES }
+/**
+ * Ranges of the two strength controls: pluck force, N, and the 5 g striker's speed, m/s. The defaults are
+ * the page's only (Phase 3D.13): a 4 N pluck and a 0.5 m/s stroke are 2.6 dB apart by the meter, where the
+ * 2 N pluck and 1 m/s stroke of the measurements are 15 dB apart. No model or reference uses them.
+ */
+export const PLUCK_FORCE = { min: 0.5, max: 8, default: 4 }
+export const STRIKE_SPEED = { min: 0.25, max: 2, default: STROKES.gentle, ...STROKES }
+
+/**
+ * The model's level for a pluck (at 0.8 of the string) and for a stroke, dB re 20 uPa (LAFmax, 1 m in
+ * front of the board): fits to renders/hybrid-lab/measurements.json, for labelling the two strength
+ * controls in the same unit. A pluck is linear in its force; a stroke rises 6.6 dB per doubling of speed.
+ * Other pluck places are within -4.4 and +1.9 dB of this.
+ */
+export const pluckLevel = (force: number) => 67.3 + 20 * Math.log10(force / 2)
+export const strikeLevel = (speed: number) => 82.5 + 21.8 * Math.log10(speed)
+
+/** Whether the page may send playing actions: only to an engine that is making sound now. */
+export const canPlay = (audioState: string, busy: boolean) => audioState === 'running' && !busy
+
+export type KeyAction = 'pluck' | 'strike' | 'gentle' | 'medium' | 'strong' | 'mute' | 'damp'
+const KEYS: Record<string, KeyAction> = { a: 'pluck', s: 'strike', 1: 'gentle', 2: 'medium', 3: 'strong', m: 'mute', d: 'damp' }
+/**
+ * What a key press means. Nothing while a modifier is held, on auto-repeat, or while the keyboard is
+ * being used to choose from a list or to type (there, letters and digits belong to the control).
+ */
+export function keyAction(key: string, o: { repeat?: boolean; modified?: boolean; focus?: 'list' | 'text' | 'other' } = {}): KeyAction | null {
+  if (o.repeat || o.modified || o.focus === 'list' || o.focus === 'text') return null
+  return KEYS[key.toLowerCase()] ?? null
+}
 
 export interface Lab {
   choice: Choice
@@ -111,6 +138,8 @@ export type Strength = keyof typeof BAR_TOUCH
 export class Controls {
   muted = false
   damped = false
+  /** Each finger is down while its button is latched or its key is held (Phase 3D.13): letting go of one does not lift what the other holds. */
+  private readonly why = { mute: { latch: false, key: false }, damp: { latch: false, key: false } }
   dampPlace = 0
   dampStrength: Strength = 'medium'
   pluckPlace = DEFAULT_PLUCK_PLACE
@@ -134,6 +163,22 @@ export class Controls {
   }
   setPluckPlace(place: number) {
     this.pluckPlace = clamp(Math.round(place), 0, PLUCK_PLACES.length - 1)
+  }
+  /** The button (`latch`) or the key says a finger should be down or up; the finger follows both. */
+  hold(finger: 'mute' | 'damp', by: 'latch' | 'key', on: boolean) {
+    this.why[finger][by] = on
+    const down = this.why[finger].latch || this.why[finger].key
+    if (finger === 'mute') this.setMute(down)
+    else this.setDamp(down)
+  }
+  latched(finger: 'mute' | 'damp') {
+    return this.why[finger].latch
+  }
+  /** Both fingers up, whatever held them. */
+  lift() {
+    for (const finger of ['mute', 'damp'] as const) this.why[finger] = { latch: false, key: false }
+    this.setMute(false)
+    this.setDamp(false)
   }
   setMute(on: boolean) {
     if (on === this.muted) return

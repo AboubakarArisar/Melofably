@@ -22,7 +22,7 @@
 //
 // Load order in the worklet: capture.js, ../wasm/processor.js, this file.
 
-/* global registerProcessor */
+/* global registerProcessor, currentFrame */
 
 const Base = globalThis.__sonicmatterProcessors && globalThis.__sonicmatterProcessors['sonicmatter-physics']
 if (!Base) throw new Error('hybrid-processor.js: capture.js and processor.js must be added to the worklet first')
@@ -55,7 +55,12 @@ const PEAK = 8
 const CEILING = 9
 const SMALLEST = 10
 const POSSIBLE = 11
-const BINS = 12
+const NON_FINITE = 12
+const LATE_LOW = 13
+const LATE_HIGH = 14
+const WALL0 = 15
+const FRAME0 = 16
+const BINS = 17
 
 class HybridProcessor extends Base {
   constructor(options) {
@@ -66,10 +71,16 @@ class HybridProcessor extends Base {
     this.clock = this.fine ? fineClock : coarseClock
     this.edges = this.fine ? FINE_EDGES : COARSE_EDGES
     this.timing = new Float64Array(BINS + this.edges.length)
+    // Samples made since this processor was made: the audio clock, counted here.
+    this.frame = 0
     const base = this.port.onmessage
     this.port.onmessage = (event) => {
       base(event)
       const message = event.data
+      // Phase 3D.13. A message that carries a stamp is answered with where the audio clock stood when it was acted on
+      // (its calls take effect from the next sample made) and what the wall clock said. Between blocks; never in process().
+      // (`frame` is the audio context's own count where there is one, so that the page can set it against the context's clock.)
+      if (message.stamp) this.port.postMessage({ stamp: message.stamp, frame: typeof currentFrame === 'number' ? currentFrame : this.frame, wall: Date.now() })
       if (message.diag && this.engine) this.port.postMessage(this.diagnostics(message))
       if (message.clear) this.timing.fill(0)
     }
@@ -167,7 +178,15 @@ class HybridProcessor extends Base {
       d[GAP_SUM] += gap
       d[GAPS] += 1
       if (gap > d[GAP_WORST]) d[GAP_WORST] = gap
+      // How far this call is from where a perfectly even delivery would have put it, counted from the first call.
+      const late = started - d[WALL0] - ((this.frame - d[FRAME0]) * 1000) / this.rate
+      if (late < d[LATE_LOW]) d[LATE_LOW] = late
+      if (late > d[LATE_HIGH]) d[LATE_HIGH] = late
+    } else {
+      d[WALL0] = started
+      d[FRAME0] = this.frame
     }
+    this.frame += first.length
     d[LAST] = started
     d[BLOCKS] += 1
     d[SUM] += took
@@ -187,6 +206,7 @@ class HybridProcessor extends Base {
     for (let i = 0; i < first.length; i++) {
       const x = first[i] < 0 ? -first[i] : first[i]
       if (x > peak) peak = x
+      else if (x !== x) d[NON_FINITE] += 1 // not a number: the engine's processor holds everything else within the ceiling
     }
     if (peak > d[PEAK]) d[PEAK] = peak
     if (peak >= 1) d[CEILING] += 1
@@ -215,6 +235,10 @@ class HybridProcessor extends Base {
       bins: Array.from(d.subarray(BINS, BINS + this.edges.length)),
       gapMean_ms: d[GAPS] ? d[GAP_SUM] / d[GAPS] : 0,
       gapWorst_ms: d[GAP_WORST],
+      // The spread of the calls about an even delivery: the browser's batches and anything that held the audio thread up.
+      deliverySpread_ms: d[LATE_HIGH] - d[LATE_LOW],
+      nonFiniteSamples: d[NON_FINITE],
+      frame: this.frame,
       peak: d[PEAK],
       blocksAtTheCeiling: d[CEILING],
       faults: engine.faults(),
