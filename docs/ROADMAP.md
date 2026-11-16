@@ -223,6 +223,17 @@ exactly the standalone reference's engine calls. A staged plan begins
 with pure code that nothing imports. See
 [HYBRID_BUILDER_DESIGN.md](HYBRID_BUILDER_DESIGN.md).
 
+Phase 3D.15 (isolated code, awaiting review; nothing integrated): the
+version 2 instrument graph as a data model. Components with stable named
+ports; three kinds of mechanical connection (bridge, tie, pad) and no
+general one; places to play (targets) kept apart from both the topology
+and the playing itself, which is never saved; validation in four tiers
+with errors and warnings; a canonical text form; a reader of both format
+versions that leaves version 1 exactly as the builder reads it; the three
+reference instruments as fixtures whose descriptions equal the standalone
+references. Nothing imports it. See
+[GRAPH_V2_FOUNDATION.md](GRAPH_V2_FOUNDATION.md).
+
 - Combine exciters, resonators, and bodies into user-defined instruments.
 - Generate Faust code from the design and compile it in the browser.
 - Save and load instrument definitions locally.

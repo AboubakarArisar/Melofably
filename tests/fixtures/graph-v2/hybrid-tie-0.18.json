@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "String on a bar bridge, tied at 0.18",
+    "notes": "Reference hybrid of Phases 3D.9 to 3D.11. Experimental: not approved by listening."
+  },
+  "nextId": 11,
+  "components": [
+    {
+      "id": "c1",
+      "type": "steelString",
+      "name": "String",
+      "params": {
+        "length": 0.65,
+        "tension": 73.5
+      },
+      "ports": [
+        {
+          "id": "pluck",
+          "name": "Pluck point",
+          "at": 0.8
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "type": "metalBar",
+      "name": "Metal bar",
+      "material": "aluminium",
+      "params": {
+        "length": 0.1994,
+        "thickness": 5,
+        "width": 20
+      },
+      "ports": [
+        {
+          "id": "middle",
+          "name": "Middle",
+          "at": 0.5
+        },
+        {
+          "id": "pad-a",
+          "name": "First pad",
+          "at": 0.215
+        },
+        {
+          "id": "pad-b",
+          "name": "Second pad",
+          "at": 0.785
+        },
+        {
+          "id": "tie",
+          "name": "String tie",
+          "at": 0.18
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "type": "dampedBox",
+      "name": "Damped box body",
+      "params": {},
+      "ports": [
+        {
+          "id": "pad-b",
+          "name": "Second pad",
+          "at": [
+            0.30731600000000003,
+            0.3333333333333333
+          ]
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "c4",
+      "kind": "tie",
+      "from": {
+        "component": "c1",
+        "port": "end"
+      },
+      "to": {
+        "component": "c2",
+        "port": "tie"
+      },
+      "stiffness": 1000000,
+      "damping": 0
+    },
+    {
+      "id": "c5",
+      "kind": "pad",
+      "from": {
+        "component": "c2",
+        "port": "pad-a"
+      },
+      "to": {
+        "component": "c3",
+        "port": "bridge"
+      },
+      "stiffness": 1000000,
+      "damping": 5
+    },
+    {
+      "id": "c6",
+      "kind": "pad",
+      "from": {
+        "component": "c2",
+        "port": "pad-b"
+      },
+      "to": {
+        "component": "c3",
+        "port": "pad-b"
+      },
+      "stiffness": 1000000,
+      "damping": 5
+    }
+  ],
+  "targets": [
+    {
+      "id": "c7",
+      "kind": "pluck",
+      "name": "Pluck",
+      "at": {
+        "component": "c1",
+        "port": "pluck"
+      }
+    },
+    {
+      "id": "c8",
+      "kind": "mute",
+      "name": "Mute string",
+      "at": {
+        "component": "c1",
+        "port": "pluck"
+      }
+    },
+    {
+      "id": "c9",
+      "kind": "strike",
+      "name": "Strike",
+      "at": {
+        "component": "c2",
+        "port": "middle"
+      },
+      "striker": {
+        "mass": 0.005,
+        "hardness": 0.5
+      }
+    },
+    {
+      "id": "c10",
+      "kind": "contact",
+      "name": "Damp bar",
+      "at": {
+        "component": "c2",
+        "port": "middle"
+      }
+    }
+  ],
+  "output": {
+    "kind": "bodyRadiation",
+    "component": "c3",
+    "distance": 1
+  }
+}

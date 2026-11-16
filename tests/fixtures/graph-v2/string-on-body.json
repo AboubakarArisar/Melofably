@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "meta": {
+    "name": "String on its body",
+    "notes": "The approved string instrument of Phase 3C.2.3, for comparison."
+  },
+  "nextId": 6,
+  "components": [
+    {
+      "id": "c1",
+      "type": "steelString",
+      "name": "String",
+      "params": {
+        "length": 0.65,
+        "tension": 73.5
+      },
+      "ports": [
+        {
+          "id": "pluck",
+          "name": "Pluck point",
+          "at": 0.8
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "type": "dampedBox",
+      "name": "Damped box body",
+      "params": {},
+      "ports": []
+    }
+  ],
+  "connections": [
+    {
+      "id": "c3",
+      "kind": "bridge",
+      "from": {
+        "component": "c1",
+        "port": "end"
+      },
+      "to": {
+        "component": "c2",
+        "port": "bridge"
+      }
+    }
+  ],
+  "targets": [
+    {
+      "id": "c4",
+      "kind": "pluck",
+      "name": "Pluck",
+      "at": {
+        "component": "c1",
+        "port": "pluck"
+      }
+    },
+    {
+      "id": "c5",
+      "kind": "mute",
+      "name": "Mute string",
+      "at": {
+        "component": "c1",
+        "port": "pluck"
+      }
+    }
+  ],
+  "output": {
+    "kind": "bodyRadiation",
+    "component": "c2",
+    "distance": 1
+  }
+}
