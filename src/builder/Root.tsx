@@ -4,7 +4,9 @@ import type { Graph } from '../experimental/graph2/model.ts'
 import Builder from './Builder.tsx'
 import { HYBRID_STORAGE_KEY, hybridTemplate, MODE_STORAGE_KEY, openText } from './hybrid.ts'
 import HybridBuilder from './HybridBuilder.tsx'
+import { OPENED_HASH } from './opened.ts'
 import { Shell } from '../ui/Shell.tsx'
+import { forgetLink, linked } from '../ui/share.ts'
 
 const read = (key: string) => {
   try {
@@ -31,10 +33,25 @@ function hybrid(choice: string): Mode {
   return { kind: 'hybrid', graph: hybridTemplate(), notice: saved.problem ? `The hybrid saved in this browser could not be used, so the reference was loaded instead. It was left as it is. ${saved.problem}` : 'Nothing has been saved yet, so the reference hybrid was loaded.' }
 }
 
+/** What the page opens with: a hybrid carried by the link, else what was open last (the hybrid as last saved, or the classic builder, which reads its own links). */
+function first(): Mode {
+  if (OPENED_HASH.startsWith('#h=')) {
+    const shared = openText(linked('h', OPENED_HASH))
+    forgetLink() // read once
+    if (shared.graph) return { kind: 'hybrid', graph: shared.graph, notice: `Opened "${shared.graph.meta.name}" from the link. It is not saved in this browser until you press Save instrument.` }
+    return { kind: 'hybrid', graph: hybridTemplate(), notice: `The link did not carry a hybrid this builder can open, so the reference was loaded instead. ${shared.problem ?? ''}` }
+  }
+  if (OPENED_HASH.startsWith('#i=')) return { kind: 'classic' }
+  return read(MODE_STORAGE_KEY) === 'hybrid' ? hybrid('saved') : { kind: 'classic' }
+}
+
+// Worked out once, when the page loads: reading a link also takes it out of the address.
+const FIRST = first()
+
 /** The classic builder (bars, the string on its box) or the hybrid builder: one at a time, each with its own audio. */
 export default function Root() {
   // After a reload the page comes back to what was open: the hybrid, as last saved, or the classic builder.
-  const [mode, setMode] = useState<Mode>(() => (read(MODE_STORAGE_KEY) === 'hybrid' ? hybrid('saved') : { kind: 'classic' }))
+  const [mode, setMode] = useState<Mode>(FIRST)
   const go = (next: Mode) => {
     remember(next.kind)
     setMode(next)

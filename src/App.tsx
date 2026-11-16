@@ -1,11 +1,14 @@
-import { ArrowRight, Pause, Play, Power, Square } from 'lucide-react'
+import { ArrowRight, Link2, Pause, Play, Power, RotateCcw, Square } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { AudioEngine } from './audio/engine/AudioEngine'
 import { instrumentParams, preloadInstruments } from './audio/worklet/instruments'
 import { Keyboard } from './components/controls/Keyboard'
 import { ParamSlider } from './components/controls/ParamSlider'
 import { Visualizer } from './components/visualization/Visualizer'
-import { defaultValues, IDS, INSTRUMENTS, withValue } from './instrumentUI'
+import { readLink, sanitize, writeLink } from './instrumentLink'
+import { defaultValues, IDS, INSTRUMENTS, withValue, type AllValues } from './instrumentUI'
+import { copy, forgetLink } from './ui/share'
 import { Shell } from './ui/Shell'
 import type { EngineStatus, InstrumentId } from './types'
 const STATUS_TEXT: Record<EngineStatus['state'], string> = {
@@ -16,12 +19,34 @@ const STATUS_TEXT: Record<EngineStatus['state'], string> = {
   error: 'Error',
 }
 
+const STORAGE_KEY = 'melofably.instruments'
+
+/** Where the page starts: the instrument a link names, with the settings it carries, over what this browser remembers, over the defaults. */
+function initial(): { instrument: InstrumentId; values: AllValues } {
+  const values = defaultValues()
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
+    if (stored && typeof stored === 'object') for (const id of IDS) values[id] = sanitize((stored as Record<string, unknown>)[id], instrumentParams[id], values[id])
+  } catch {
+    // Nothing usable is stored, or storage is unavailable: the defaults stand.
+  }
+  const link = readLink(location.hash, IDS, instrumentParams, defaultValues())
+  if (link?.values) {
+    values[link.id] = link.values
+    forgetLink(`#${link.id}`) // read once: a reload must not put the link's settings back over later changes
+  }
+  return { instrument: link?.id ?? 'string', values }
+}
+
+// Worked out once, when the page loads: reading a link also takes its settings out of the address.
+const START = initial()
+
 export default function App() {
   const [status, setStatus] = useState<EngineStatus>({ state: 'stopped' })
   const [engine] = useState(() => new AudioEngine(setStatus))
-  const [instrument, setInstrument] = useState<InstrumentId>(() => IDS.find((id) => `#${id}` === location.hash) ?? 'string')
-  // Each instrument keeps its own control values while another is selected.
-  const [allValues, setAllValues] = useState(defaultValues)
+  const [instrument, setInstrument] = useState<InstrumentId>(START.instrument)
+  // Each instrument keeps its own control values while another is selected, and this browser remembers them.
+  const [allValues, setAllValues] = useState(START.values)
   const [note, setNote] = useState<number | null>(null)
 
   useEffect(() => {
@@ -45,6 +70,26 @@ export default function App() {
   useEffect(() => {
     if (live) for (const [key, value] of Object.entries(values)) engine.setParam(key, value)
   }, [engine, live, values])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(allValues))
+    } catch {
+      // Remembering is a convenience; the page works without it.
+    }
+  }, [allValues])
+
+  const changed = Object.keys(values).some((key) => values[key] !== params[key].init)
+  const reset = () => {
+    setAllValues((prev) => ({ ...prev, [instrument]: defaultValues()[instrument] }))
+    toast.success(`${ui.label} is back to its defaults`)
+  }
+  const share = async () => {
+    const url = `${location.origin}${location.pathname}${writeLink(instrument, values, params)}`
+    if (await copy(url)) toast.success('Link copied. It opens this instrument with these settings.')
+    else toast.error('The browser would not copy the link. It is in the address bar instead.')
+    history.replaceState(null, '', url)
+  }
 
   const play = useCallback(
     (n: number) => {
@@ -111,7 +156,17 @@ export default function App() {
               </button>
             ))}
           </div>
-          <a className="m-btn m-btn-ghost ml-auto" href="/builder.html">
+          <div className="ml-auto flex flex-wrap gap-2">
+            <button type="button" className="m-btn" onClick={reset} disabled={!changed} title="Put every control of this instrument back to its default">
+              <RotateCcw aria-hidden="true" />
+              Reset
+            </button>
+            <button type="button" className="m-btn" onClick={() => void share()} title="Copy a link that opens this instrument with these settings">
+              <Link2 aria-hidden="true" />
+              Share
+            </button>
+          </div>
+          <a className="m-btn m-btn-ghost" href="/builder.html">
             Build your own <ArrowRight aria-hidden="true" size={16} />
           </a>
         </div>

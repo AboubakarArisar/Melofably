@@ -1,10 +1,11 @@
 // EXPERIMENTAL (Phase 3B). The instrument builder page: palette, canvas,
 // inspector, audio controls and status. All physics is in the WebAssembly
 // engine; this file only edits the graph and tells the session about it.
-import { Eraser, Play, Power, Redo2, Square, Undo2 } from 'lucide-react'
+import { Download, Eraser, FolderOpen, Link2, Play, Power, Redo2, Square, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { ConfirmDialog } from '../ui/ConfirmDialog.tsx'
+import { copy, download, forgetLink, linked, linkTo, pickText } from '../ui/share.ts'
 import { BrowserBackend, type Meter } from './audio.ts'
 import { Canvas, type Selection } from './Canvas.tsx'
 import { EXAMPLES, RADIATION_EXAMPLES, STRING_EXAMPLES } from './examples.ts'
@@ -20,6 +21,7 @@ import {
   removeComponent,
   removeConnection,
   restore,
+  deserialize,
   serialize,
   setConnection,
   setMaterial,
@@ -34,14 +36,17 @@ import {
 } from './graph.ts'
 import { Inspector } from './Inspector.tsx'
 import { Session, type SessionState } from './session.ts'
+import { OPENED_HASH } from './opened.ts'
 import { freeSpot } from './shapes.ts'
 
 const STORAGE_KEY = 'sonicmatter.builder.instrument'
+/** The instrument that was here when a shared link was opened over it. */
+const PREVIOUS_KEY = 'sonicmatter.builder.previous'
 /** How long to wait after the last structural edit before rebuilding, so that dragging a slider restarts the sound once. */
 const REBUILD_DELAY = 250 // ms
 
 /** The instrument saved in this browser, or the first example; with the reason if a saved one could not be used. */
-function initial(): { graph: Graph; problem?: string } {
+function initial(): { graph: Graph; notice: string } {
   let saved: string | null = null
   try {
     saved = localStorage.getItem(STORAGE_KEY)
@@ -49,7 +54,32 @@ function initial(): { graph: Graph; problem?: string } {
     // Storage is unavailable (private window, blocked): the builder works without it.
   }
   const restored = restore(saved)
-  return { graph: restored.graph ?? EXAMPLES[0].make(), problem: restored.problem }
+  const own = { graph: restored.graph ?? EXAMPLES[0].make(), notice: restored.problem ? `The instrument saved in this browser could not be used, so the first example was loaded instead. ${restored.problem}` : '' }
+  // A link that carries an instrument opens it, once. What was here before is kept, so that a link never costs anyone their work.
+  if (!OPENED_HASH.startsWith('#i=')) return own
+  const text = linked('i', OPENED_HASH)
+  forgetLink()
+  try {
+    const shared = deserialize(text ?? '')
+    if (restored.graph && saved !== serialize(shared)) {
+      try {
+        localStorage.setItem(PREVIOUS_KEY, saved!)
+      } catch {
+        // Nowhere to keep it.
+      }
+      return { graph: shared, notice: 'Opened the instrument from the link. Yours is kept: choose "Your previous instrument" in the list above to get it back.' }
+    }
+    return { graph: shared, notice: 'Opened the instrument from the link.' }
+  } catch (error) {
+    return { graph: own.graph, notice: `The link did not carry an instrument this builder can open, so yours was left as it is. ${error instanceof Error ? error.message : ''}` }
+  }
+}
+const previous = () => {
+  try {
+    return restore(localStorage.getItem(PREVIOUS_KEY)).graph
+  } catch {
+    return null
+  }
 }
 const INITIAL = initial()
 
@@ -64,7 +94,7 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
   const graph = history.present
   const [selection, setSelection] = useState<Selection>(null)
   const [state, setState] = useState<SessionState>({ running: false, issues: [], notes: [], rebuilds: 0 })
-  const [notice, setNotice] = useState(INITIAL.problem ? `The instrument saved in this browser could not be used, so the first example was loaded instead. ${INITIAL.problem}` : '')
+  const [notice, setNotice] = useState(INITIAL.notice)
   const [struck, setStruck] = useState<{ ids: string[]; n: number }>({ ids: [], n: 0 })
   const [failure, setFailure] = useState('')
   const [lastMeter, setMeter] = useState<Meter | null>(null)
@@ -216,6 +246,31 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
     setSelection(null)
   }
 
+  // Keeping an instrument as a file, opening one, and passing one on as a link.
+  const sound = validateGraph(graph).length === 0
+  const saveFile = () => {
+    download('melofably-instrument.melofably.json', serialize(graph))
+    toast.success('Saved as a file in your downloads')
+  }
+  const openFile = async () => {
+    const text = await pickText()
+    if (text === null) return
+    try {
+      load(deserialize(text))
+      toast.success('Opened the instrument from the file. Undo brings back what was here.')
+    } catch (error) {
+      toast.error(`That file could not be opened. ${error instanceof Error ? error.message : ''}${/"formatVersion":\s*2|"version":\s*2/.test(text) ? ' It looks like a hybrid: open it from the hybrid builder.' : ''}`)
+    }
+  }
+  const share = async () => {
+    const url = linkTo('i', serialize(graph))
+    if (await copy(url)) toast.success('Link copied. Anyone who opens it gets this instrument.')
+    else {
+      window.history.replaceState(null, '', url)
+      toast.error('The browser would not copy the link. It is in the address bar instead.')
+    }
+  }
+
   // Keyboard: undo, redo, delete, and Space to play. Not while typing in a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -277,11 +332,13 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
             onChange={(e) => {
               // The hybrid (a string on a bar bridge) is a different kind of instrument with its own page of the builder.
               if (e.target.value.startsWith('hybrid:')) return onOpenHybrid?.(e.target.value.slice(7))
+              if (e.target.value === 'previous') return void (previous() && load(previous()!))
               if (e.target.value) load([...EXAMPLES, ...STRING_EXAMPLES, ...RADIATION_EXAMPLES].find((x) => x.id === e.target.value)!.make())
             }}
             className="rounded border border-neutral-600 bg-neutral-800 px-2 py-1.5 text-sm"
           >
             <option value="">Load an example…</option>
+            {previous() && <option value="previous">Your previous instrument</option>}
             {EXAMPLES.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}
@@ -309,6 +366,18 @@ export default function Builder({ onOpenHybrid }: { onOpenHybrid?: (choice: stri
               </optgroup>
             )}
           </select>
+          <button className={button} onClick={() => void openFile()} title="Open an instrument saved as a file">
+            <FolderOpen aria-hidden="true" />
+            Open
+          </button>
+          <button className={button} onClick={saveFile} disabled={!sound} title={sound ? 'Save this instrument as a file' : 'Fix the problems listed below first'}>
+            <Download aria-hidden="true" />
+            Save
+          </button>
+          <button className={button} onClick={() => void share()} disabled={!sound} title={sound ? 'Copy a link that opens this instrument' : 'Fix the problems listed below first'}>
+            <Link2 aria-hidden="true" />
+            Share
+          </button>
           <button className={button} onClick={() => setClearing(true)} disabled={graph.components.length === 0}>
             <Eraser aria-hidden="true" />
             Clear

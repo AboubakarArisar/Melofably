@@ -2,7 +2,7 @@
 // one string-on-a-bar-bridge assembly a validated model exists for. Its
 // parts and connections are fixed; their sizes, places and strengths are
 // the user's. What it is: hybrid.ts. How it sounds: hybridAudio.ts.
-import { FolderOpen, Hand, Power, Save, Square } from 'lucide-react'
+import { Download, FolderOpen, Hand, Link2, Power, Save, Square, Upload } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { COMPONENTS, CONNECTIONS, TARGETS, type Graph } from '../experimental/graph2/model.ts'
@@ -10,6 +10,7 @@ import { validate, type Issue } from '../experimental/graph2/validate.ts'
 import { FULL_SCALE, keyAction, PLUCK_FORCE, pluckLevel, STRIKE_SPEED, strikeLevel, type Strength } from '../experimental/hybrid/instrument.ts'
 import { BAR_TOUCH } from '../experimental/string/stringBarBody.ts'
 import { BODY } from '../experimental/string/stringBody.ts'
+import { copy, download, fileName, linkTo, pickText } from '../ui/share.ts'
 import { Slider } from '../ui/Slider.tsx'
 import { compileHybrid, HYBRID_STORAGE_KEY, hybridTemplate, IDS, openText, rename, saveText, setMaterial, setPads, setParam, setPort, setStriker, setTie } from './hybrid.ts'
 import { HybridVoice, type HybridStatus } from './hybridAudio.ts'
@@ -238,6 +239,32 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
     }
   }
 
+  // Keeping the instrument as a file, opening one, and passing it on as a link.
+  const refuse = () => void toast.error('Fix the problems listed on the page first.')
+  const saveFile = () => {
+    if (text === null) return refuse()
+    download(fileName(graph.meta.name), text)
+    toast.success('Saved as a file in your downloads')
+  }
+  const openFile = async () => {
+    const picked = await pickText()
+    if (picked === null) return
+    const read = openText(picked)
+    if (read.graph) {
+      open(read.graph, `Opened "${read.graph.meta.name}" from a file.`)
+      toast.success(`Opened "${read.graph.meta.name}"`)
+    } else toast.error(`That file could not be opened. ${read.problem ?? ''}`)
+  }
+  const share = async () => {
+    if (text === null) return refuse()
+    const url = linkTo('h', text)
+    if (await copy(url)) toast.success('Link copied. Anyone who opens it gets this instrument.')
+    else {
+      window.history.replaceState(null, '', url)
+      toast.error('The browser would not copy the link. It is in the address bar instead.')
+    }
+  }
+
   // For driving the page from the developer console and from browser checks.
   useEffect(() => {
     Object.assign(window, { sonicmatterHybridBuilder: { graph: () => latest.current, voice: () => voice.current, status: () => voice.current?.status(), setGraph } })
@@ -295,6 +322,18 @@ export default function HybridBuilder({ initial, initialNotice = '', onClassic }
           <button className={button} onClick={openSaved} disabled={savedText === null}>
             <FolderOpen aria-hidden="true" />
             Open saved
+          </button>
+          <button className={button} onClick={() => void openFile()} title="Open a hybrid saved as a file">
+            <Upload aria-hidden="true" />
+            Open file
+          </button>
+          <button className={button} onClick={saveFile} disabled={text === null} title="Save this instrument as a file">
+            <Download aria-hidden="true" />
+            Save file
+          </button>
+          <button className={button} onClick={() => void share()} disabled={text === null} title="Copy a link that opens this instrument">
+            <Link2 aria-hidden="true" />
+            Share
           </button>
         </div>
       </header>
