@@ -29,10 +29,18 @@ export function BrandBar({ current }: { current: PageId }) {
   )
 }
 
+/** Melofably's sound needs two things every current browser has; an old or locked-down one may not. */
+const CAN_PLAY = typeof AudioWorkletNode !== 'undefined' && typeof WebAssembly !== 'undefined'
+
 export function Shell({ current, children }: { current: PageId; children: ReactNode }) {
   return (
     <>
       <BrandBar current={current} />
+      {!CAN_PLAY && (
+        <p role="alert" className="border-b border-red-800 bg-red-950 px-4 py-3 text-center text-sm text-red-300">
+          This browser cannot run Melofably&rsquo;s sound engine (it needs AudioWorklet and WebAssembly). You can look around, but nothing will play. A current version of Chrome, Edge, Firefox or Safari will.
+        </p>
+      )}
       {children}
       <Toaster
         position="bottom-right"

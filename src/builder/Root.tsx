@@ -42,6 +42,7 @@ function first(): Mode {
     return { kind: 'hybrid', graph: hybridTemplate(), notice: `The link did not carry a hybrid this builder can open, so the reference was loaded instead. ${shared.problem ?? ''}` }
   }
   if (OPENED_HASH.startsWith('#i=')) return { kind: 'classic' }
+  if (OPENED_HASH === '#hybrid') return hybrid('0.20')
   return read(MODE_STORAGE_KEY) === 'hybrid' ? hybrid('saved') : { kind: 'classic' }
 }
 

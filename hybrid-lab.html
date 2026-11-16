@@ -8,7 +8,15 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/favicon-192.png?v=2" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=2" />
     <title>Hybrid · Melofably</title>
-    <meta name="description" content="Melofably Hybrid: play a string whose bridge is a metal bar, modelled physically." />
+    <meta name="description" content="An experimental instrument: a string whose bridge is a metal bar, modelled physically." />
+    <meta name="theme-color" content="#e5e8ce" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Melofably" />
+    <meta property="og:title" content="Hybrid · Melofably" />
+    <meta property="og:description" content="An experimental instrument: a string whose bridge is a metal bar, modelled physically." />
+    <meta property="og:image" content="/brand/favicon-512.png" />
+    <meta name="twitter:card" content="summary" />
     <link rel="stylesheet" href="/src/ui/controls.css" />
     <style>
       :root { color-scheme: light; }
@@ -46,6 +54,7 @@
       .hit { animation: hit 0.35s ease-out; }
       @keyframes hit { from { opacity: 1; } to { opacity: 0; } }
       svg text { fill: #526354; font: 12px var(--m-font); } svg#picture { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 16px; padding: 0.5rem; box-sizing: border-box; }
+      a { color: var(--m-accent); font-weight: 600; }
       details { margin: 1rem 0; }
       summary { cursor: pointer; color: var(--m-brand); font-weight: 600; }
       ol, ul { padding-left: 1.3rem; }
@@ -79,6 +88,7 @@
       physical model's sound pressure in front of the soundboard; nothing is sampled, filtered, compressed or faded. Nobody has listened to this instrument
       yet: the judgement is yours.
     </p>
+    <p class="note">This page plays the instrument as it was measured. To change its sizes, save it or share it, <a href="/builder.html#hybrid">open it in the Builder</a>.</p>
     <div id="error" role="alert"></div>
 
     <fieldset>

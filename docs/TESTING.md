@@ -162,3 +162,15 @@ and `hybrid-lab.html` are where they were. Checked by hand in Chromium at 1280 p
 sections and links, starting audio and playing a key on the studio page (signal measured on the analyser, not
 listened to), a slider changing its shown value and the pitch readout, the builder, the hybrid template's
 save and reload, and the Hybrid Lab. Not checked: Firefox and Safari, a real touch screen, a screen reader.
+
+## Saving and sharing
+
+`tests/share.test.ts` (11 tests): text survives a link unchanged; the classic examples and the hybrid survive a
+link; a damaged link is refused; instrument settings from a link or from storage are held to each control's
+range and unknown names are ignored. Checked by hand in Chromium on the development server: a settings link
+opens the right instrument with out-of-range values clamped, settings survive a reload, Reset and Share work;
+a classic-builder link opens the instrument and "Your previous instrument" brings back what was there; a
+broken link leaves the work untouched; a hybrid link opens the edited hybrid; a key press starts audio. The
+production build (`npm run preview`) was checked for sound on the instruments page, the classic builder and
+the hybrid page. Not checked by hand: the file dialogs (Save and Open use the same text as the links), and the
+clipboard, which the test browser refuses, so the fallback of putting the link in the address bar is what ran.

@@ -55,8 +55,8 @@ Documentation:
 ## Playing it
 
 1. Run `npm run dev` and open http://localhost:5173 (the landing page); the four validated instruments are at http://localhost:5173/studio.html.
-2. Choose **String**, **Metal Bar**, **Glass Vessel** or **Wooden Bar**, then press **Start Audio** (browsers
-   only allow audio after a click). The instrument can be changed while
+2. Choose **String**, **Metal Bar**, **Glass Vessel** or **Wooden Bar**, then press a key or **Start Audio**
+   (browsers only allow audio after a press). The instrument can be changed while
    audio is running.
 3. Click the keys, or use the computer keyboard: the Z row is the first
    octave, the Q row the second.
@@ -64,6 +64,25 @@ Documentation:
    calculated fundamental is shown and marked on the spectrum. Tone
    brightness, attack softness and body resonance change the character
    without changing the pitch.
+5. Your settings are remembered in the browser. **Reset** puts an
+   instrument back to its defaults; **Share** copies a link that opens it
+   with your settings.
+
+## Saving and sharing
+
+Nothing is stored on a server. An instrument is kept in three ways:
+
+- **In the browser.** The Instruments page and the classic builder save as
+  you work; the hybrid builder saves when you press **Save instrument**.
+- **As a file.** Both builders have **Save** and **Open** for a
+  `.melofably.json` file.
+- **As a link.** **Share** copies a link that carries the whole instrument
+  in its address (`studio.html#bar?length=0.4`, `builder.html#i=…`,
+  `builder.html#h=…`). Opening one never replaces your own work without
+  keeping it: the classic builder offers it back as "Your previous
+  instrument", and a shared hybrid is not saved until you save it. Values
+  from a link are checked like any other input, and a link that cannot be
+  read changes nothing.
 
 ## Requirements
 
@@ -90,12 +109,14 @@ and reopened. It is one fixed assembly with editable sizes, attachment
 points and strengths, not free construction. Experimental; not yet judged
 by ear.
 
-The instrument builder is at http://localhost:5173/builder.html and the
-experimental engine's test page at http://localhost:5173/experimental.html
-(both development server only). The experimental hybrid instrument (a
-string whose bridge is a metal bar) can be played at
-http://localhost:5173/hybrid-lab.html, also development server only; see
-[docs/HYBRID_LAB.md](docs/HYBRID_LAB.md).
+The instrument builder is at http://localhost:5173/builder.html. The
+experimental hybrid instrument (a string whose bridge is a metal bar) can
+be played at http://localhost:5173/hybrid-lab.html; see
+[docs/HYBRID_LAB.md](docs/HYBRID_LAB.md). The landing page, the
+instruments, the builder and the hybrid page are all in the production
+build (`npm run build`, then `npm run preview` to try it). The
+experimental engine's test page, http://localhost:5173/experimental.html,
+is development server only.
 
 ## Scripts
 
@@ -156,8 +177,10 @@ src/
   types/            shared types
 assembly/           AssemblyScript source of the WebAssembly physics engine
 experimental.html   development-only test page for that engine
-hybrid-lab.html     development-only page for playing the experimental hybrid instrument
-builder.html        development-only instrument builder page
+index.html          the landing page (src/landing/)
+studio.html         the four validated instruments (src/App.tsx)
+builder.html        the instrument builder, classic and hybrid
+hybrid-lab.html     the experimental hybrid instrument as measured
 tests/              Vitest tests; tests/baseline/ holds the approved audio
 analysis/           signal measurements, frozen Phase 1 model, render scripts
 scripts/            build-dsp.mjs: compiles the Faust models

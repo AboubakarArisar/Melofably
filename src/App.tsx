@@ -91,12 +91,15 @@ export default function App() {
     history.replaceState(null, '', url)
   }
 
+  // A key plays its note. If audio is still off, the same press turns it on first (a press is what browsers require for that).
+  const off = state === 'stopped' || state === 'error'
   const play = useCallback(
     (n: number) => {
       setNote(n)
-      engine.play(n)
+      if (off) void engine.start(instrument).then(() => engine.play(n))
+      else engine.play(n)
     },
-    [engine],
+    [engine, off, instrument],
   )
 
   const select = (id: InstrumentId) => {
@@ -191,12 +194,15 @@ export default function App() {
             <section aria-label="Playing surface" className="m-panel p-4 sm:p-5">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-lg font-bold">Play</h2>
-                <p className="text-sm text-neutral-400">{live ? 'Click the keys, or press the letters shown on them.' : 'Start audio to play.'}</p>
+                <p className="text-sm text-neutral-400">{live ? 'Click the keys, or press the letters shown on them.' : off ? 'Press any key to start: audio turns on with your first note.' : 'One moment…'}</p>
               </div>
-              <Keyboard disabled={!live} active={note} noteName={ui.noteName} frequencyOf={frequencyOf} onPlay={play} />
+              <Keyboard disabled={!live && !off} active={note} noteName={ui.noteName} frequencyOf={frequencyOf} onPlay={play} />
             </section>
             <section aria-label="Sound" className="m-panel p-4 sm:p-5">
-              <h2 className="mb-3 text-lg font-bold">Waveform and spectrum</h2>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-bold">Waveform and spectrum</h2>
+                {!live && <p className="text-sm text-neutral-400">Shown while audio is on.</p>}
+              </div>
               <Visualizer analyser={engine.analyser} fundamental={frequencyOf(note ?? 0)} />
             </section>
           </div>
