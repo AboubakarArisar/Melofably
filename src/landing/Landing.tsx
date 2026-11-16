@@ -88,7 +88,6 @@ export function Landing() {
       <header className="m-bar">
         <a className="m-wordmark" href="/" aria-label="Melofably, home">
           <img src="/brand/logo.png" alt="" width="50" height="28" />
-          Melofably
         </a>
         <nav className="m-nav" aria-label="Melofably">
           <a href="#product">How it works</a>
