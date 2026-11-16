@@ -76,8 +76,8 @@ export default function App() {
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:py-8">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="mr-auto">
-            <p className="m-eyebrow">Instrument studio</p>
-            <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight">{ui.label}</h1>
+            <p className="m-eyebrow">Instruments</p>
+            <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-[-0.035em]">{ui.label}</h1>
           </div>
           <p role="status" className="m-chip py-1.5">
             <span className={`h-2 w-2 rounded-full ${live ? 'bg-emerald-500' : state === 'error' ? 'bg-red-400' : 'bg-neutral-600'}`} />

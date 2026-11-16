@@ -33,6 +33,8 @@
   --m-muted: var(--m-raised);
   --m-control: #ffffff;
   --m-font: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --m-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
+  --m-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
   --m-control-h: 42px;
   --m-radius: 10px;
   --m-ease: 140ms ease;
@@ -45,6 +47,8 @@ html {
 body {
   margin: 0;
   font-family: var(--m-font);
+  font-weight: 500;
+  font-feature-settings: 'cv11', 'ss01';
   background-color: var(--m-bg);
   color: var(--m-text);
   -webkit-font-smoothing: antialiased;
@@ -64,7 +68,7 @@ button {
   min-height: var(--m-control-h);
   border-radius: var(--m-radius);
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), box-shadow var(--m-ease), transform 90ms ease;
   display: inline-flex;
@@ -107,7 +111,7 @@ button svg {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  font-weight: 650;
+  font-weight: 700;
   white-space: nowrap;
   transition: background-color var(--m-ease), border-color var(--m-ease), color var(--m-ease), transform 90ms ease;
 }
@@ -274,8 +278,9 @@ input[type='range']:disabled {
   color: var(--m-text);
 }
 .m-slider-value {
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-family: var(--m-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--m-text);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -294,7 +299,8 @@ input[type='range']:disabled {
   display: flex;
   justify-content: space-between;
   margin-top: -0.3rem;
-  font-size: 0.75rem;
+  font-family: var(--m-mono);
+  font-size: 0.6875rem;
   color: var(--m-text-2);
   font-variant-numeric: tabular-nums;
 }
@@ -334,15 +340,17 @@ input[type='range']:disabled {
 }
 .m-metric dd {
   margin: 0.15rem 0 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--m-mono);
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 .m-eyebrow {
+  font-family: var(--m-mono);
   font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--m-accent);
 }
@@ -353,7 +361,7 @@ input[type='range']:disabled {
   border-radius: 999px;
   padding: 0.15rem 0.6rem;
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: 700;
   border: 1px solid var(--m-border-strong);
   color: var(--m-text-2);
   background: var(--m-surface);
@@ -404,7 +412,7 @@ dialog.m-dialog[open] {
 .m-wordmark {
   font-size: 1.3rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   color: var(--m-text);
   text-decoration: none;
 }

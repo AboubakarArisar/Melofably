@@ -6,7 +6,7 @@
    (700, 600) to the text (400 secondary, 100 main). The accent scale is the dark interactive green. */
 @theme {
   --font-sans: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
 
   --color-sage-ivory: #e5e8ce;
   --color-sage: #789575;

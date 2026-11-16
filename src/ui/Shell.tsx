@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 const PAGES = [
   { id: 'instruments', label: 'Instruments', href: '/studio.html' },
   { id: 'builder', label: 'Builder', href: '/builder.html' },
-  { id: 'lab', label: 'Hybrid Lab', href: '/hybrid-lab.html' },
+  { id: 'lab', label: 'Hybrid', href: '/hybrid-lab.html' },
 ] as const
 
 export type PageId = (typeof PAGES)[number]['id']
